@@ -57,17 +57,23 @@ end
 -- 列出筆記（可選擇資料夾）
 function M.list_notes(folder_id, limit)
 	local success, notes = api.get_notes(folder_id, limit)
+
 	if not success then
-		print("❌ Failed to get notes: " .. notes)
+		print("❌ Failed to get notes: " .. tostring(notes))
 		return false
 	end
 
 	local folder_info = folder_id and ("in folder " .. folder_id) or "(all folders)"
 	print(string.format("📝 Joplin Notes %s:", folder_info))
 
+	if #notes == 0 then
+		print("  (No notes found)")
+		return notes
+	end
+
 	for i, note in ipairs(notes) do
-		local updated = os.date("%Y-%m-%d %H:%M", note.updated_time / 1000)
-		print(string.format("  %d. %s (updated: %s)", i, note.title, updated))
+		local updated = note.updated_time and os.date("%Y-%m-%d %H:%M", note.updated_time / 1000) or "N/A"
+		print(string.format("  %d. %s (updated: %s)", i, note.title or "Untitled", updated))
 	end
 
 	return notes

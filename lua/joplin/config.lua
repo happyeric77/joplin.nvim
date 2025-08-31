@@ -27,6 +27,10 @@ function M.setup(opts)
 end
 
 function M.get_token()
+  -- 如果 token 為 nil，嘗試從環境變數讀取
+  if not M.options.token then
+    M.options.token = getenv_or_default(M.options.token_env, nil)
+  end
   return M.options.token
 end
 

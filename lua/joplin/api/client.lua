@@ -11,7 +11,11 @@ local function build_url(path, params)
 	params.token = config.get_token()
 	local query = {}
 	for k, v in pairs(params) do
-		table.insert(query, string.format("%s=%s", k, vim.fn.escape(tostring(v), ",")))
+		-- 對參數值進行 URL encoding，但不要轉義逗號（fields 參數需要逗號）
+		local encoded_value = tostring(v):gsub("([^%w%-%.%_%~])", function(c)
+			return string.format("%%%02X", string.byte(c))
+		end)
+		table.insert(query, string.format("%s=%s", k, encoded_value))
 	end
 	if #query > 0 then
 		return base .. "?" .. table.concat(query, "&")
@@ -129,7 +133,10 @@ end
 -- 取得指定資料夾的筆記
 function M.get_notes(folder_id, limit)
 	limit = limit or 50
-	local params = { limit = limit }
+	local params = { 
+		limit = limit,
+		fields = 'id,title,updated_time,created_time,parent_id' -- 指定需要的欄位
+	}
 	if folder_id then
 		params.folder_id = folder_id
 	end
