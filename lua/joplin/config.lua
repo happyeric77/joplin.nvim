@@ -13,13 +13,33 @@ M.options = {
   token = nil, -- 若直接指定 token
   port = 41184,
   host = 'localhost',
+  tree = {
+    height = 12,           -- 樹狀檢視高度
+    position = "botright", -- 位置：botright, topleft, etc
+    focus_after_open = false, -- 開啟筆記後是否保持焦點在樹狀檢視
+  },
+  keymaps = {
+    enter = "replace",     -- Enter 行為：replace/vsplit
+    o = "vsplit",          -- o 行為：vsplit/replace
+  }
 }
 
 function M.setup(opts)
   opts = opts or {}
-  for k, v in pairs(opts) do
-    M.options[k] = v
+  
+  -- 深度合併配置
+  local function deep_merge(target, source)
+    for k, v in pairs(source) do
+      if type(v) == "table" and type(target[k]) == "table" then
+        deep_merge(target[k], v)
+      else
+        target[k] = v
+      end
+    end
   end
+  
+  deep_merge(M.options, opts)
+  
   -- 若未直接指定 token，則從環境變數讀取
   if not M.options.token then
     M.options.token = getenv_or_default(M.options.token_env, nil)

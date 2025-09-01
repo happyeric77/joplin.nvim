@@ -5,6 +5,9 @@ local M = {}
 function M.setup(opts)
 	opts = opts or {}
 	
+	-- 設定配置
+	config.setup(opts)
+	
 	-- 註冊基本命令
 	vim.api.nvim_create_user_command('JoplinPing', function()
 		M.ping()
@@ -104,6 +107,74 @@ end
 function M.create_tree()
 	local tree_ui = require("joplin.ui.tree")
 	tree_ui.create_tree()
+end
+
+-- 查找適合開啟筆記的視窗
+function M.find_target_window(tree_state)
+	local tree_winid = vim.api.nvim_get_current_win()
+	local all_wins = vim.api.nvim_list_wins()
+	
+	-- 如果有記錄的原始視窗，優先使用
+	if tree_state.original_win then
+		for _, winid in ipairs(all_wins) do
+			if winid == tree_state.original_win then
+				return winid
+			end
+		end
+	end
+	
+	-- 尋找第一個非樹狀檢視的正常視窗
+	for _, winid in ipairs(all_wins) do
+		if winid ~= tree_winid then
+			local bufnr = vim.api.nvim_win_get_buf(winid)
+			local buftype = vim.api.nvim_buf_get_option(bufnr, 'buftype')
+			-- 排除特殊 buffer (nofile, quickfix, etc.)
+			if buftype == '' or buftype == 'acwrite' then
+				return winid
+			end
+		end
+	end
+	
+	-- 如果沒找到合適的視窗，返回 nil
+	return nil
+end
+
+-- 在指定視窗開啟筆記
+function M.open_note_in_window(note_id, target_win, split_type)
+	local config = require("joplin.config")
+	local buffer_utils = require('joplin.utils.buffer')
+	
+	if target_win then
+		-- 切換到目標視窗
+		vim.api.nvim_set_current_win(target_win)
+		
+		if split_type == "vsplit" then
+			-- 垂直分割開啟筆記
+			local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
+			if not success then
+				print("❌ 開啟筆記失敗: " .. result)
+			end
+		else
+			-- 直接在當前視窗開啟筆記（替換內容）
+			local success, result = pcall(buffer_utils.open_note, note_id, "edit")
+			if not success then
+				print("❌ 開啟筆記失敗: " .. result)
+			end
+		end
+		
+		-- 根據配置決定是否將焦點返回到樹狀檢視
+		if not config.options.tree.focus_after_open then
+			-- 保持在筆記視窗
+			return
+		end
+	else
+		-- 沒有找到目標視窗，創建新的垂直分割
+		print("💡 沒有找到合適的視窗，創建新的分割")
+		local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
+		if not success then
+			print("❌ 開啟筆記失敗: " .. result)
+		end
+	end
 end
 
 -- 重建樹狀顯示內容
@@ -262,6 +333,7 @@ end
 
 -- 處理 Enter 按鍵
 function M.handle_tree_enter(tree_state)
+	local config = require("joplin.config")
 	local line_num = vim.api.nvim_win_get_cursor(0)[1]
 	local line_data = tree_state.line_data[line_num]
 	
@@ -282,20 +354,55 @@ function M.handle_tree_enter(tree_state)
 		end
 		
 	elseif line_data.type == "note" then
-		-- 開啟 note
-		M.open_note_from_tree(line_data.id)
+		-- Enter: 根據配置決定開啟方式（預設為替換上方視窗）
+		local open_mode = config.options.keymaps.enter
+		local target_win = M.find_target_window(tree_state)
+		local split_type = (open_mode == "vsplit") and "vsplit" or "replace"
+		
+		M.open_note_in_window(line_data.id, target_win, split_type)
+		
+		-- 如果配置要求保持焦點在樹狀檢視，切換回樹狀檢視
+		if config.options.tree.focus_after_open then
+			local tree_wins = vim.api.nvim_list_wins()
+			for _, winid in ipairs(tree_wins) do
+				local bufnr = vim.api.nvim_win_get_buf(winid)
+				if bufnr == tree_state.bufnr then
+					vim.api.nvim_set_current_win(winid)
+					break
+				end
+			end
+		end
 	end
 end
 
 -- 處理 o 按鍵（開啟）
 function M.handle_tree_open(tree_state)
+	local config = require("joplin.config")
 	local line_num = vim.api.nvim_win_get_cursor(0)[1]
 	local line_data = tree_state.line_data[line_num]
 	
 	if not line_data then return end
 	
 	if line_data.type == "note" then
-		M.open_note_from_tree(line_data.id)
+		-- o: 根據配置決定開啟方式（預設為垂直分割）
+		local open_mode = config.options.keymaps.o
+		local target_win = M.find_target_window(tree_state)
+		local split_type = (open_mode == "replace") and "replace" or "vsplit"
+		
+		M.open_note_in_window(line_data.id, target_win, split_type)
+		
+		-- 如果配置要求保持焦點在樹狀檢視，切換回樹狀檢視
+		if config.options.tree.focus_after_open then
+			local tree_wins = vim.api.nvim_list_wins()
+			for _, winid in ipairs(tree_wins) do
+				local bufnr = vim.api.nvim_win_get_buf(winid)
+				if bufnr == tree_state.bufnr then
+					vim.api.nvim_set_current_win(winid)
+					break
+				end
+			end
+		end
+		
 	elseif line_data.type == "folder" then
 		-- 對 folder 按 o 也是展開/收縮
 		M.handle_tree_enter(tree_state)
@@ -392,18 +499,25 @@ function M.show_help()
 	print("  :JoplinHelp      - 顯示此幫助訊息")
 	print("")
 	print("🌳 樹狀瀏覽器操作:")
-	print("  Enter    - 展開/收縮資料夾 或 開啟筆記")
-	print("  o        - 開啟筆記 或 展開資料夾")
+	print("  Enter    - 在上方視窗開啟筆記（替換內容）")
+	print("  o        - 在上方視窗垂直分割開啟筆記")
 	print("  a        - 建立新項目 (名稱以 '/' 結尾建立資料夾，否則建立筆記)")
 	print("  A        - 建立新資料夾 (快捷方式)")
 	print("  d        - 刪除筆記或資料夾 (需要確認)")
 	print("  r        - 重新命名筆記或資料夾")
 	print("  R        - 重新整理樹狀結構")
-	print("  q        - 關閉瀏覽器")
+	print("  q        - 關閉樹狀瀏覽器")
+	print("")
+	print("⚙️  配置選項:")
+	print("  tree.height      - 樹狀檢視高度 (預設: 12)")
+	print("  tree.position    - 樹狀檢視位置 (預設: 'botright')")
+	print("  keymaps.enter    - Enter 鍵行為 ('replace' 或 'vsplit')")
+	print("  keymaps.o        - o 鍵行為 ('vsplit' 或 'replace')")
 	print("")
 	print("⚠️  重要提醒:")
 	print("  • 確保 Joplin Web Clipper 服務正在運行")
-	print("  • 建立資料夾時請在名稱後加上 '/' 或使用 A 鍵")
+	print("  • 樹狀檢視會在底部開啟，類似 quickfix 視窗")
+	print("  • 筆記會智能地在上方視窗開啟")
 	print("")
 	print("💡 需要協助？請參考 GitHub repository 或提交 issue")
 end

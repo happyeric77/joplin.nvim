@@ -115,6 +115,13 @@ end
 -- 創建樹狀瀏覽器
 function M.create_tree()
 	local success, error_msg = pcall(function()
+		local config = require("joplin.config")
+		local tree_height = config.options.tree.height
+		local tree_position = config.options.tree.position
+		
+		-- 記錄當前視窗 ID，作為之後開啟筆記的目標視窗
+		local original_win = vim.api.nvim_get_current_win()
+		
 		local bufnr
 		
 		-- 總是創建新的 buffer
@@ -145,6 +152,7 @@ function M.create_tree()
 			loading = {},
 			lines = {},
 			line_data = {},
+			original_win = original_win,  -- 記錄原始視窗
 		}
 		
 		-- 初始狀態：所有 folder 都是收縮的
@@ -170,12 +178,12 @@ function M.create_tree()
 		-- 設定快捷鍵
 		M.setup_tree_keymaps(bufnr)
 		
-		-- 開啟樹狀檢視
-		vim.cmd("split")
+		-- 使用配置的位置和高度開啟樹狀檢視
+		vim.cmd(tree_position .. " " .. tree_height .. "split")
 		vim.api.nvim_set_current_buf(bufnr)
 		
 		print("✅ Joplin 樹狀檢視已開啟")
-		print("💡 按 'o' 展開資料夾，'a' 新增筆記，'A' 新增資料夾，'d' 刪除，'r' 重新命名，'R' 重新整理")
+		print("💡 按 'Enter' 在上方視窗開啟筆記，'o' 垂直分割開啟，'q' 關閉樹狀檢視")
 	end)
 	
 	if not success then
