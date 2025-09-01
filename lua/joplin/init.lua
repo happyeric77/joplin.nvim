@@ -339,36 +339,31 @@ function M.simple_neotree_joplin()
 		vim.api.nvim_buf_set_option(bufnr, "filetype", "joplin-tree")
 		vim.api.nvim_buf_set_option(bufnr, "modifiable", true)  -- 確保可修改
 		
-		-- 獲取 Joplin 數據
+		print("🔄 正在載入資料夾結構...")
+		
+		-- 獲取 Joplin 資料夾數據
 		local folders_success, folders = api.get_folders()
 		if not folders_success then
 			error("Failed to fetch folders: " .. folders)
 		end
 		
-		-- 為每個 folder 預先獲取 notes（包括所有層級的 folders）
-		local folder_notes = {}
-		for _, folder in ipairs(folders) do
-			local notes_success, notes = api.get_notes(folder.id)
-			if notes_success then
-				folder_notes[folder.id] = notes
-			else
-				folder_notes[folder.id] = {}
-			end
-		end
+		print("✅ 已載入 " .. #folders .. " 個資料夾，正在建立樹狀結構...")
 		
-		-- 建立樹狀結構的狀態管理
+		-- 建立樹狀結構的狀態管理（不預先載入筆記）
 		local tree_state = {
 			bufnr = bufnr,
 			folders = folders,
-			folder_notes = folder_notes,
-			expanded = {},  -- 記錄哪些 folder 是展開的
-			lines = {},     -- 顯示的行
-			line_data = {}, -- 每行對應的數據 {type = "folder"/"note", id = "...", parent_id = "..."}
+			folder_notes = {},  -- 開始時為空，按需載入
+			expanded = {},      -- 記錄哪些 folder 是展開的
+			loading = {},       -- 記錄哪些 folder 正在載入筆記
+			lines = {},         -- 顯示的行
+			line_data = {},     -- 每行對應的數據
 		}
 		
 		-- 初始狀態：所有 folder 都是收縮的
 		for _, folder in ipairs(folders) do
 			tree_state.expanded[folder.id] = false
+			tree_state.loading[folder.id] = false
 		end
 		
 		-- 重建顯示內容
@@ -381,8 +376,8 @@ function M.simple_neotree_joplin()
 		vim.cmd("vsplit")
 		vim.api.nvim_set_current_buf(bufnr)
 		
-		print("✅ Joplin 互動式樹狀瀏覽器已開啟")
-		print("💡 按 Enter 展開/收縮資料夾，按 o 開啟筆記")
+		print("✅ Joplin 樹狀瀏覽器已開啟")
+		print("💡 按 Enter 展開資料夾（按需載入筆記），按 o 開啟筆記")
 	end)
 	
 	if not success then
@@ -490,18 +485,32 @@ function M.display_folder_tree(tree_state, folders, depth)
 			end
 			
 			-- 再顯示該資料夾中的筆記
-			local notes = tree_state.folder_notes[folder.id] or {}
-			for _, note in ipairs(notes) do
-				local note_indent = string.rep("  ", depth + 1)
-				local note_line = string.format("%s📄 %s", note_indent, note.title)
-				table.insert(tree_state.lines, note_line)
+			if tree_state.loading[folder.id] then
+				-- 顯示載入指示器
+				local loading_indent = string.rep("  ", depth + 1)
+				local loading_line = string.format("%s⏳ 正在載入筆記...", loading_indent)
+				table.insert(tree_state.lines, loading_line)
 				table.insert(tree_state.line_data, {
-					type = "note",
-					id = note.id,
-					title = note.title,
-					parent_id = folder.id,
+					type = "loading",
+					id = folder.id,
 					depth = depth + 1
 				})
+			else
+				local notes = tree_state.folder_notes[folder.id]
+				if notes then
+					for _, note in ipairs(notes) do
+						local note_indent = string.rep("  ", depth + 1)
+						local note_line = string.format("%s📄 %s", note_indent, note.title)
+						table.insert(tree_state.lines, note_line)
+						table.insert(tree_state.line_data, {
+							type = "note",
+							id = note.id,
+							title = note.title,
+							parent_id = folder.id,
+							depth = depth + 1
+						})
+					end
+				end
 			end
 		end
 	end
@@ -587,6 +596,45 @@ function M.debug_current_line(tree_state)
 	end
 end
 
+-- 異步載入資料夾筆記
+function M.load_folder_notes_async(tree_state, folder_id, cursor_line)
+	-- 設置載入狀態
+	tree_state.loading[folder_id] = true
+	
+	-- 立即更新顯示，顯示載入指示器
+	M.rebuild_tree_display(tree_state)
+	vim.api.nvim_win_set_cursor(0, {cursor_line, 0})
+	
+	-- 顯示載入訊息
+	local folder_name = ""
+	for _, folder in ipairs(tree_state.folders) do
+		if folder.id == folder_id then
+			folder_name = folder.title
+			break
+		end
+	end
+	print("🔄 正在載入 " .. folder_name .. " 的筆記...")
+	
+	-- 使用 vim.defer_fn 來模擬異步行為
+	vim.defer_fn(function()
+		local success, notes = api.get_notes(folder_id)
+		if success then
+			tree_state.folder_notes[folder_id] = notes
+			print("✅ 已載入 " .. #notes .. " 個筆記")
+		else
+			tree_state.folder_notes[folder_id] = {}
+			print("❌ 載入筆記失敗: " .. notes)
+		end
+		
+		-- 清除載入狀態
+		tree_state.loading[folder_id] = false
+		
+		-- 重新渲染
+		M.rebuild_tree_display(tree_state)
+		vim.api.nvim_win_set_cursor(0, {cursor_line, 0})
+	end, 10) -- 10ms 延遲，讓 UI 有時間更新
+end
+
 -- 處理 Enter 按鍵
 function M.handle_tree_enter(tree_state)
 	local line_num = vim.api.nvim_win_get_cursor(0)[1]
@@ -596,11 +644,17 @@ function M.handle_tree_enter(tree_state)
 	
 	if line_data.type == "folder" then
 		-- 切換 folder 展開/收縮狀態
-		tree_state.expanded[line_data.id] = not tree_state.expanded[line_data.id]
-		M.rebuild_tree_display(tree_state)
+		local is_expanding = not tree_state.expanded[line_data.id]
+		tree_state.expanded[line_data.id] = is_expanding
 		
-		-- 保持游標位置
-		vim.api.nvim_win_set_cursor(0, {line_num, 0})
+		-- 如果是展開且尚未載入筆記，則按需載入
+		if is_expanding and not tree_state.folder_notes[line_data.id] then
+			M.load_folder_notes_async(tree_state, line_data.id, line_num)
+		else
+			M.rebuild_tree_display(tree_state)
+			-- 保持游標位置
+			vim.api.nvim_win_set_cursor(0, {line_num, 0})
+		end
 		
 	elseif line_data.type == "note" then
 		-- 開啟 note
