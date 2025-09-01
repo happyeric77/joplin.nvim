@@ -197,6 +197,96 @@ function M.get_tree_state_for_buffer(bufnr)
 	return buffer_tree_states[bufnr]
 end
 
+-- 尋找活躍的樹狀 buffer
+function M.find_active_tree_buffer()
+	for bufnr, _ in pairs(buffer_tree_states) do
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			return bufnr
+		end
+	end
+	return nil
+end
+
+-- 在樹狀視窗中尋找並高亮指定筆記（不切換 focus）
+function M.highlight_note_in_tree(note_id)
+	local tree_bufnr = M.find_active_tree_buffer()
+	if not tree_bufnr then
+		return false
+	end
+	
+	local tree_state = buffer_tree_states[tree_bufnr]
+	if not tree_state then
+		return false
+	end
+	
+	-- 在樹狀顯示中尋找指定的筆記
+	for line_num, line_data in ipairs(tree_state.line_data) do
+		if line_data.type == "note" and line_data.id == note_id then
+			-- 尋找樹狀視窗
+			local tree_wins = vim.api.nvim_list_wins()
+			for _, winid in ipairs(tree_wins) do
+				local bufnr = vim.api.nvim_win_get_buf(winid)
+				if bufnr == tree_bufnr then
+					-- 記錄當前活躍視窗
+					local current_win = vim.api.nvim_get_current_win()
+					
+					-- 使用 nvim_win_call 在樹狀視窗中設置游標，但不切換 focus
+					vim.api.nvim_win_call(winid, function()
+						vim.api.nvim_win_set_cursor(0, {line_num, 0})
+					end)
+					
+					-- 確保 focus 保持在原來的視窗
+					if vim.api.nvim_get_current_win() ~= current_win then
+						vim.api.nvim_set_current_win(current_win)
+					end
+					
+					return true
+				end
+			end
+			return false
+		end
+	end
+	
+	return false
+end
+
+-- 展開到指定 folder 並高亮指定筆記（靜默模式）
+function M.expand_and_highlight_note(parent_folder_id, note_id, silent)
+	silent = silent or false
+	
+	if not silent then
+		print("🔄 展開到資料夾: " .. parent_folder_id)
+	end
+	
+	-- 先展開到目標資料夾，傳遞 silent 參數
+	M.expand_to_folder(parent_folder_id, silent)
+	
+	-- 等待樹狀重建完成後嘗試高亮筆記
+	vim.schedule(function()
+		-- 給一個短暫延遲確保樹狀重建完成
+		vim.defer_fn(function()
+			local highlighted = M.highlight_note_in_tree(note_id)
+			if not silent and not highlighted then
+				-- 只在非靜默模式下提供診斷信息
+				local tree_bufnr = M.find_active_tree_buffer()
+				if tree_bufnr then
+					local tree_state = buffer_tree_states[tree_bufnr]
+					if tree_state and tree_state.folder_notes[parent_folder_id] then
+						local notes = tree_state.folder_notes[parent_folder_id]
+						print("📝 資料夾中共有 " .. #notes .. " 個筆記")
+						for i, note in ipairs(notes) do
+							if note.id == note_id then
+								print("✅ 目標筆記確實在資料夾中: " .. note.title)
+								break
+							end
+						end
+					end
+				end
+			end
+		end, 200) -- 200ms 延遲
+	end)
+end
+
 -- 建立 folder ID 到 folder 物件的映射
 function M.build_folder_map(folders)
 	local folder_map = {}
@@ -229,7 +319,9 @@ function M.get_folder_path(target_folder_id, folder_map)
 end
 
 -- 展開到指定的 folder 並載入其筆記
-function M.expand_to_folder(target_folder_id)
+function M.expand_to_folder(target_folder_id, silent)
+	silent = silent or false
+	
 	-- 尋找活躍的樹狀檢視 buffer
 	local tree_bufnr = nil
 	for bufnr, _ in pairs(buffer_tree_states) do
@@ -240,13 +332,17 @@ function M.expand_to_folder(target_folder_id)
 	end
 	
 	if not tree_bufnr then
-		print("❌ 沒有找到活躍的樹狀檢視")
+		if not silent then
+			print("❌ 沒有找到活躍的樹狀檢視")
+		end
 		return
 	end
 	
 	local tree_state = buffer_tree_states[tree_bufnr]
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		if not silent then
+			print("❌ 無法找到樹狀檢視狀態")
+		end
 		return
 	end
 	
@@ -255,14 +351,18 @@ function M.expand_to_folder(target_folder_id)
 	
 	-- 檢查目標 folder 是否存在
 	if not folder_map[target_folder_id] then
-		print("❌ 找不到指定的資料夾: " .. target_folder_id)
+		if not silent then
+			print("❌ 找不到指定的資料夾: " .. target_folder_id)
+		end
 		return
 	end
 	
 	-- 獲取到目標 folder 的路徑
 	local path = M.get_folder_path(target_folder_id, folder_map)
 	
-	print("🗂️  展開路徑: " .. table.concat(path, " -> "))
+	if not silent then
+		print("🗂️  展開路徑: " .. table.concat(path, " -> "))
+	end
 	
 	-- 逐層展開路徑上的每個 folder
 	for _, folder_id in ipairs(path) do
@@ -277,15 +377,19 @@ function M.expand_to_folder(target_folder_id)
 				local success, notes = api.get_notes(folder_id)
 				if success then
 					tree_state.folder_notes[folder_id] = notes
-					local folder_name = folder_map[folder_id].title or "Unknown"
-					if #notes > 0 then
-						print("✅ 已載入 " .. #notes .. " 個筆記 (" .. folder_name .. ")")
-					else
-						print("📝 資料夾已展開，但沒有筆記 (" .. folder_name .. ")")
+					if not silent then
+						local folder_name = folder_map[folder_id].title or "Unknown"
+						if #notes > 0 then
+							print("✅ 已載入 " .. #notes .. " 個筆記 (" .. folder_name .. ")")
+						else
+							print("📝 資料夾已展開，但沒有筆記 (" .. folder_name .. ")")
+						end
 					end
 				else
 					tree_state.folder_notes[folder_id] = {}
-					print("❌ 載入筆記失敗: " .. notes)
+					if not silent then
+						print("❌ 載入筆記失敗: " .. notes)
+					end
 				end
 				tree_state.loading[folder_id] = false
 			end
@@ -299,16 +403,29 @@ function M.expand_to_folder(target_folder_id)
 	-- 尋找目標 folder 在顯示中的行號並定位游標
 	for line_num, line_data in ipairs(tree_state.line_data) do
 		if line_data.type == "folder" and line_data.id == target_folder_id then
-			-- 切換到樹狀檢視視窗
+			-- 尋找樹狀檢視視窗
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
 				local bufnr = vim.api.nvim_win_get_buf(winid)
 				if bufnr == tree_bufnr then
-					vim.api.nvim_set_current_win(winid)
-					vim.api.nvim_win_set_cursor(winid, {line_num, 0})
-					local folder_name = folder_map[target_folder_id].title or "Unknown"
-					local note_count = tree_state.folder_notes[target_folder_id] and #tree_state.folder_notes[target_folder_id] or 0
-					print("✅ 已定位到資料夾: " .. folder_name .. " (" .. note_count .. " 個筆記)")
+					if silent then
+						-- 靜默模式：使用 nvim_win_call 不切換 focus
+						local current_win = vim.api.nvim_get_current_win()
+						vim.api.nvim_win_call(winid, function()
+							vim.api.nvim_win_set_cursor(0, {line_num, 0})
+						end)
+						-- 確保 focus 保持在原來的視窗
+						if vim.api.nvim_get_current_win() ~= current_win then
+							vim.api.nvim_set_current_win(current_win)
+						end
+					else
+						-- 非靜默模式：正常切換到樹狀視窗
+						vim.api.nvim_set_current_win(winid)
+						vim.api.nvim_win_set_cursor(winid, {line_num, 0})
+						local folder_name = folder_map[target_folder_id].title or "Unknown"
+						local note_count = tree_state.folder_notes[target_folder_id] and #tree_state.folder_notes[target_folder_id] or 0
+						print("✅ 已定位到資料夾: " .. folder_name .. " (" .. note_count .. " 個筆記)")
+					end
 					break
 				end
 			end

@@ -96,6 +96,20 @@ function M.open_note(note_id, open_cmd)
     end,
   })
   
+  -- 設置自動同步命令（當進入此 buffer 時）
+  vim.api.nvim_create_autocmd("BufEnter", {
+    buffer = bufnr,
+    callback = function()
+      -- 延遲執行避免在 buffer 創建過程中觸發
+      vim.schedule(function()
+        local joplin = require('joplin')
+        if joplin.auto_sync_to_current_note then
+          joplin.auto_sync_to_current_note()
+        end
+      end)
+    end,
+  })
+  
   -- 根據 open_cmd 打開 buffer
   if open_cmd == "edit" then
     vim.api.nvim_set_current_buf(bufnr)

@@ -1238,4 +1238,47 @@ function M.expand_to_folder(folder_id)
 		tree_ui.expand_to_folder(folder_id)
 	end, 100) -- 100ms 延遲確保 tree 已建立
 end
+
+-- 自動同步函數（用於自動觸發）
+local last_synced_note = nil
+
+function M.auto_sync_to_current_note()
+	local buffer_utils = require('joplin.utils.buffer')
+	local tree_ui = require("joplin.ui.tree")
+	
+	-- 檢查是否啟用自動同步
+	local config = require("joplin.config")
+	if not config.options.tree.auto_sync then
+		return
+	end
+	
+	-- 檢查當前 buffer 是否為 Joplin 筆記
+	local note_info = buffer_utils.get_note_info()
+	if not note_info then
+		return
+	end
+	
+	-- 檢查是否有活躍的樹狀視窗
+	local tree_bufnr = tree_ui.find_active_tree_buffer()
+	if not tree_bufnr then
+		return
+	end
+	
+	-- 避免重複同步相同筆記
+	if last_synced_note == note_info.note_id then
+		return
+	end
+	
+	-- 檢查筆記是否有父資料夾
+	if not note_info.parent_id or note_info.parent_id == "" then
+		return
+	end
+	
+	-- 記錄當前同步的筆記，避免重複
+	last_synced_note = note_info.note_id
+	
+	-- 靜默執行同步（第三個參數為 true 表示靜默模式）
+	tree_ui.expand_and_highlight_note(note_info.parent_id, note_info.note_id, true)
+end
+
 return M

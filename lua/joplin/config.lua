@@ -17,6 +17,7 @@ M.options = {
     height = 12,           -- 樹狀檢視高度
     position = "botright", -- 位置：botright, topleft, etc
     focus_after_open = false, -- 開啟筆記後是否保持焦點在樹狀檢視
+    auto_sync = true,      -- 自動同步：當切換到 Joplin buffer 時自動同步樹狀視窗
   },
   keymaps = {
     enter = "replace",     -- Enter 行為：replace/vsplit
