@@ -7,6 +7,11 @@ local note_buffer_map = {}
 
 -- 獲取或創建筆記 buffer
 function M.open_note(note_id, open_cmd)
+  -- 如果傳入的是 table，提取 id
+  if type(note_id) == "table" then
+    note_id = note_id.id
+  end
+  
   if not note_id then
     vim.notify("Note ID is required", vim.log.levels.ERROR)
     return
@@ -193,6 +198,16 @@ function M.reload_note(bufnr)
   
   vim.notify("Note reloaded successfully", vim.log.levels.INFO)
   return true
+end
+
+-- 便利函數：在分割視窗中打開筆記（從搜尋結果使用）
+function M.open_note_split(note)
+  return M.open_note(note, "vsplit")
+end
+
+-- 便利函數：直接替換當前視窗（從搜尋結果使用）
+function M.open_note_current(note)
+  return M.open_note(note, "edit")
 end
 
 return M

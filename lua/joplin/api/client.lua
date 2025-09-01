@@ -402,4 +402,39 @@ function M.delete_note(note_id)
 	return true, result
 end
 
+-- 搜尋筆記
+function M.search_notes(query, options)
+	if not query or query == "" then
+		return false, "Search query is required"
+	end
+
+	options = options or {}
+	local limit = options.limit or 50
+	local page = options.page or 1
+	local fields = options.fields or 'id,title,body,parent_id,updated_time'
+	local order_by = options.order_by or 'updated_time'
+	local order_dir = options.order_dir or 'desc'
+	local type = options.type or 'note'
+
+	local params = {
+		query = query,
+		type = type,
+		fields = fields,
+		limit = limit,
+		page = page,
+		order_by = order_by,
+		order_dir = order_dir
+	}
+
+	local ok, result = pcall(function()
+		return M.get(endpoints.SEARCH, params)
+	end)
+
+	if not ok then
+		return false, "Failed to search notes: " .. result
+	end
+
+	return true, result
+end
+
 return M

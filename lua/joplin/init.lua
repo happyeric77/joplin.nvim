@@ -24,6 +24,32 @@ function M.setup(opts)
 	vim.api.nvim_create_user_command('JoplinTree', function()
 		M.create_tree()
 	end, { desc = 'Open Joplin tree view' })
+	
+	-- 搜尋相關命令
+	vim.api.nvim_create_user_command('JoplinFind', function(opts)
+		M.search_notes(opts.args)
+	end, { 
+		desc = 'Search Joplin notes with Telescope',
+		nargs = '?'
+	})
+	
+	vim.api.nvim_create_user_command('JoplinSearch', function(opts)
+		M.search_notes(opts.args)
+	end, { 
+		desc = 'Search Joplin notes with Telescope',
+		nargs = '?'
+	})
+	
+	-- 設置快捷鍵
+	local search_keymap = config.options.keymaps.search
+	if search_keymap and search_keymap ~= "" then
+		vim.keymap.set('n', search_keymap, function()
+			M.search_notes()
+		end, { 
+			desc = 'Search Joplin notes',
+			silent = true 
+		})
+	end
 end
 
 -- 測試 API 連接
@@ -494,9 +520,21 @@ function M.show_help()
 	print("")
 	print("🎯 主要指令:")
 	print("  :JoplinTree      - 開啟互動式樹狀瀏覽器")
+	print("  :JoplinFind      - 開啟 Telescope 搜尋筆記")
+	print("  :JoplinSearch    - 開啟 Telescope 搜尋筆記 (同 JoplinFind)")
 	print("  :JoplinBrowse    - 開啟簡單文字清單瀏覽器")
 	print("  :JoplinPing      - 測試 Joplin 連線狀態")
 	print("  :JoplinHelp      - 顯示此幫助訊息")
+	print("")
+	print("⌨️  快捷鍵:")
+	print("  " .. config.options.keymaps.search .. "       - 搜尋筆記 (預設: <leader>js)")
+	print("")
+	print("🔍 搜尋功能:")
+	print("  • 使用 Telescope 提供即時搜尋體驗")
+	print("  • 搜尋筆記標題和內容")
+	print("  • 提供筆記預覽")
+	print("  • Enter    - 在當前視窗開啟筆記")
+	print("  • Ctrl+V   - 在分割視窗開啟筆記")
 	print("")
 	print("🌳 樹狀瀏覽器操作:")
 	print("  Enter    - 在上方視窗開啟筆記（替換內容）")
@@ -509,13 +547,15 @@ function M.show_help()
 	print("  q        - 關閉樹狀瀏覽器")
 	print("")
 	print("⚙️  配置選項:")
-	print("  tree.height      - 樹狀檢視高度 (預設: 12)")
-	print("  tree.position    - 樹狀檢視位置 (預設: 'botright')")
-	print("  keymaps.enter    - Enter 鍵行為 ('replace' 或 'vsplit')")
-	print("  keymaps.o        - o 鍵行為 ('vsplit' 或 'replace')")
+	print("  tree.height        - 樹狀檢視高度 (預設: 12)")
+	print("  tree.position      - 樹狀檢視位置 (預設: 'botright')")
+	print("  keymaps.enter      - Enter 鍵行為 ('replace' 或 'vsplit')")
+	print("  keymaps.o          - o 鍵行為 ('vsplit' 或 'replace')")
+	print("  keymaps.search     - 搜尋快捷鍵 (預設: '<leader>js')")
 	print("")
 	print("⚠️  重要提醒:")
 	print("  • 確保 Joplin Web Clipper 服務正在運行")
+	print("  • 搜尋功能需要安裝 telescope.nvim")
 	print("  • 樹狀檢視會在底部開啟，類似 quickfix 視窗")
 	print("  • 筆記會智能地在上方視窗開啟")
 	print("")
@@ -1084,6 +1124,35 @@ function M.rename_item_from_tree()
 		-- 重建樹狀顯示
 		M.rebuild_tree_display(tree_state)
 	end
+end
+
+-- 搜尋筆記 (Telescope fuzzy finder)
+function M.search_notes(default_text)
+	local search_ui = require("joplin.ui.search")
+	
+	-- 檢查 Telescope 是否可用
+	if not search_ui.is_telescope_available() then
+		vim.notify("Telescope is not installed. Please install telescope.nvim to use search functionality.", vim.log.levels.ERROR)
+		return
+	end
+	
+	-- 檢查 Joplin 連接
+	local ping_ok, ping_result = api.ping()
+	if not ping_ok then
+		vim.notify("Cannot connect to Joplin: " .. ping_result, vim.log.levels.ERROR)
+		return
+	end
+	
+	-- 開啟搜尋界面
+	search_ui.search_notes({
+		default_text = default_text,
+		layout_strategy = 'horizontal',
+		layout_config = {
+			height = 0.8,
+			width = 0.9,
+			preview_width = 0.6,
+		},
+	})
 end
 
 return M
