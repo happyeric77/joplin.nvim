@@ -351,6 +351,23 @@ function M.update_note(note_id, data)
 	return true, result
 end
 
+-- 更新資料夾
+function M.update_folder(folder_id, data)
+	if not folder_id then
+		return false, "Folder ID is required"
+	end
+
+	local ok, result = pcall(function()
+		return M.put(endpoints.FOLDERS .. "/" .. folder_id, data)
+	end)
+
+	if not ok then
+		return false, "Failed to update folder: " .. result
+	end
+
+	return true, result
+end
+
 -- 刪除資料夾
 function M.delete_folder(folder_id)
 	if not folder_id then
