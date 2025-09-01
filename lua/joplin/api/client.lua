@@ -119,37 +119,98 @@ end
 
 -- 取得所有資料夾 (notebooks)
 function M.get_folders()
-	local ok, result = pcall(function()
-		return M.get(endpoints.FOLDERS)
-	end)
+	local limit = 100  -- 單次查詢限制
+	local all_folders = {}
+	local page = 1
+	local has_more = true
 
-	if not ok then
-		return false, "Failed to fetch folders: " .. result
+	-- 分頁獲取所有資料夾
+	while has_more do
+		local params = { 
+			limit = limit,
+			page = page
+		}
+
+		local ok, result = pcall(function()
+			return M.get(endpoints.FOLDERS, params)
+		end)
+
+		if not ok then
+			return false, "Failed to fetch folders: " .. result
+		end
+
+		if result and result.items then
+			for _, folder in ipairs(result.items) do
+				table.insert(all_folders, folder)
+			end
+			has_more = result.has_more or false
+			page = page + 1
+			
+			-- 防止無限循環
+			if page > 50 then  -- 最多查詢 50 頁
+				break
+			end
+		else
+			has_more = false
+		end
 	end
 
-	return true, result.items or result
+	return true, all_folders
 end
 
 -- 取得指定資料夾的筆記
 function M.get_notes(folder_id, limit)
-	limit = limit or 50
-	local params = { 
-		limit = limit,
-		fields = 'id,title,updated_time,created_time,parent_id' -- 指定需要的欄位
-	}
+	limit = limit or 100  -- 單次查詢限制
+	local all_notes = {}
+	local page = 1
+	local has_more = true
+
+	-- 分頁獲取所有筆記
+	while has_more do
+		local params = { 
+			limit = limit,
+			page = page,
+			fields = 'id,title,updated_time,created_time,parent_id'
+		}
+
+		local ok, result = pcall(function()
+			return M.get(endpoints.NOTES, params)
+		end)
+
+		if not ok then
+			return false, "Failed to fetch notes: " .. result
+		end
+
+		if result and result.items then
+			for _, note in ipairs(result.items) do
+				table.insert(all_notes, note)
+			end
+			has_more = result.has_more or false
+			page = page + 1
+			
+			-- 防止無限循環
+			if page > 50 then  -- 最多查詢 50 頁
+				break
+			end
+		else
+			has_more = false
+		end
+	end
+	
+	-- 如果有指定 folder_id，過濾出屬於該資料夾的筆記
 	if folder_id then
-		params.folder_id = folder_id
+		local filtered_notes = {}
+		
+		for _, note in ipairs(all_notes) do
+			if note.parent_id == folder_id then
+				table.insert(filtered_notes, note)
+			end
+		end
+		
+		return true, filtered_notes
 	end
 
-	local ok, result = pcall(function()
-		return M.get(endpoints.NOTES, params)
-	end)
-
-	if not ok then
-		return false, "Failed to fetch notes: " .. result
-	end
-
-	return true, result.items or result
+	return true, all_notes
 end
 
 -- 取得單一筆記內容
@@ -159,11 +220,113 @@ function M.get_note(note_id)
 	end
 
 	local ok, result = pcall(function()
-		return M.get(endpoints.NOTES .. "/" .. note_id)
+		return M.get(endpoints.NOTES .. "/" .. note_id, {
+			fields = 'id,title,body,parent_id,created_time,updated_time'
+		})
 	end)
 
 	if not ok then
 		return false, "Failed to fetch note: " .. result
+	end
+
+	return true, result
+end
+
+-- 創建新資料夾 (notebook)
+function M.create_folder(title, parent_id)
+	if not title or title == "" then
+		return false, "Folder title is required"
+	end
+
+	local data = {
+		title = title,
+	}
+	if parent_id then
+		data.parent_id = parent_id
+	end
+
+	local ok, result = pcall(function()
+		return M.post(endpoints.FOLDERS, data)
+	end)
+
+	if not ok then
+		return false, "Failed to create folder: " .. result
+	end
+
+	return true, result
+end
+
+-- 創建新筆記
+function M.create_note(title, body, parent_id)
+	if not title or title == "" then
+		return false, "Note title is required"
+	end
+
+	local data = {
+		title = title,
+		body = body or "",
+	}
+	if parent_id then
+		data.parent_id = parent_id
+	end
+
+	local ok, result = pcall(function()
+		return M.post(endpoints.NOTES, data)
+	end)
+
+	if not ok then
+		return false, "Failed to create note: " .. result
+	end
+
+	return true, result
+end
+
+-- 更新筆記內容
+function M.update_note(note_id, data)
+	if not note_id then
+		return false, "Note ID is required"
+	end
+
+	local ok, result = pcall(function()
+		return M.post(endpoints.NOTES .. "/" .. note_id, data)
+	end)
+
+	if not ok then
+		return false, "Failed to update note: " .. result
+	end
+
+	return true, result
+end
+
+-- 刪除資料夾
+function M.delete_folder(folder_id)
+	if not folder_id then
+		return false, "Folder ID is required"
+	end
+
+	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
+		build_url(endpoints.FOLDERS .. "/" .. folder_id))
+
+	local success, result = execute_request(cmd)
+	if not success then
+		return false, "Failed to delete folder: " .. result
+	end
+
+	return true, result
+end
+
+-- 刪除筆記
+function M.delete_note(note_id)
+	if not note_id then
+		return false, "Note ID is required"
+	end
+
+	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
+		build_url(endpoints.NOTES .. "/" .. note_id))
+
+	local success, result = execute_request(cmd)
+	if not success then
+		return false, "Failed to delete note: " .. result
 	end
 
 	return true, result
