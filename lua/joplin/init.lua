@@ -1126,9 +1126,26 @@ function M.delete_item_from_tree()
 		else -- folder
 			print("✅ 資料夾刪除成功，更新顯示...")
 			
+			-- 從資料夾列表中移除已刪除的資料夾
+			if tree_state.folders then
+				for i, folder in ipairs(tree_state.folders) do
+					if folder.id == line_data.id then
+						table.remove(tree_state.folders, i)
+						break
+					end
+				end
+			end
+			
 			-- 清除與該資料夾相關的快取
-			tree_state.folder_notes[line_data.id] = nil
-			tree_state.folder_expanded[line_data.id] = nil
+			if tree_state.folder_notes then
+				tree_state.folder_notes[line_data.id] = nil
+			end
+			if tree_state.expanded then
+				tree_state.expanded[line_data.id] = nil
+			end
+			if tree_state.loading then
+				tree_state.loading[line_data.id] = nil
+			end
 		end
 		
 		-- 重建樹狀顯示
