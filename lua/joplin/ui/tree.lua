@@ -277,7 +277,12 @@ function M.expand_to_folder(target_folder_id)
 				local success, notes = api.get_notes(folder_id)
 				if success then
 					tree_state.folder_notes[folder_id] = notes
-					print("✅ 已載入 " .. #notes .. " 個筆記 (" .. (folder_map[folder_id].title or "Unknown") .. ")")
+					local folder_name = folder_map[folder_id].title or "Unknown"
+					if #notes > 0 then
+						print("✅ 已載入 " .. #notes .. " 個筆記 (" .. folder_name .. ")")
+					else
+						print("📝 資料夾已展開，但沒有筆記 (" .. folder_name .. ")")
+					end
 				else
 					tree_state.folder_notes[folder_id] = {}
 					print("❌ 載入筆記失敗: " .. notes)
@@ -301,7 +306,9 @@ function M.expand_to_folder(target_folder_id)
 				if bufnr == tree_bufnr then
 					vim.api.nvim_set_current_win(winid)
 					vim.api.nvim_win_set_cursor(winid, {line_num, 0})
-					print("✅ 已定位到資料夾: " .. (folder_map[target_folder_id].title or "Unknown"))
+					local folder_name = folder_map[target_folder_id].title or "Unknown"
+					local note_count = tree_state.folder_notes[target_folder_id] and #tree_state.folder_notes[target_folder_id] or 0
+					print("✅ 已定位到資料夾: " .. folder_name .. " (" .. note_count .. " 個筆記)")
 					break
 				end
 			end

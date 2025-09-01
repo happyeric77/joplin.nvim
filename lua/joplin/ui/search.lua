@@ -138,35 +138,28 @@ function M.search_notebooks(opts)
     prompt_title = "Search Joplin Notebooks",
     finder = finders.new_dynamic {
       fn = function(prompt)
-        -- 對於空查詢，返回一些初始結果
-        if not prompt or prompt == "" then
-          local success, result = client.search_notebooks("*", {
-            limit = 20,
-            fields = 'id,title,parent_id,updated_time,created_time'
-          })
-          
-          if success and result and result.items then
-            local entries = {}
-            for _, notebook in ipairs(result.items) do
-              table.insert(entries, {
-                value = notebook,
-                display = format_notebook_entry(notebook),
-                ordinal = tostring(notebook.title or "Untitled"), -- 確保是字符串
-              })
-            end
-            return entries
-          else
-            return {}
-          end
-        end
-        
-        -- 使用 get_folders() 並手動過濾
+        -- 始終使用 get_folders() 並手動過濾，確保結果一致性
         local success, folders = client.get_folders()
         if not success then
           return {}
         end
         
         local filtered_entries = {}
+        
+        -- 對於空查詢，返回前20個 folder
+        if not prompt or prompt == "" then
+          for i = 1, math.min(20, #folders) do
+            local folder = folders[i]
+            table.insert(filtered_entries, {
+              value = folder,
+              display = format_notebook_entry(folder),
+              ordinal = tostring(folder.title or "Untitled"),
+            })
+          end
+          return filtered_entries
+        end
+        
+        -- 對於非空查詢，進行字符串匹配
         local search_term = tostring(prompt):lower()
         
         for _, folder in ipairs(folders) do
@@ -175,7 +168,7 @@ function M.search_notebooks(opts)
             table.insert(filtered_entries, {
               value = folder,
               display = format_notebook_entry(folder),
-              ordinal = title, -- 已經是字符串
+              ordinal = title,
             })
           end
         end
@@ -191,7 +184,7 @@ function M.search_notebooks(opts)
         }
       end,
     },
-    sorter = conf.generic_sorter(opts), -- 回到 generic_sorter
+    sorter = conf.generic_sorter(opts),
     previewer = false,
     attach_mappings = function(prompt_bufnr, map)
       actions.select_default:replace(function()

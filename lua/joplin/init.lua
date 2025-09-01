@@ -612,13 +612,25 @@ function M.create_note(folder_id, title)
 	print("✅ 筆記建立成功: " .. result.id)
 	vim.notify("Note created successfully: " .. title, vim.log.levels.INFO)
 	
-	-- 自動開啟新建立的筆記
-	local buffer_utils = require('joplin.utils.buffer')
-	local open_success, open_result = pcall(buffer_utils.open_note, result.id, "vsplit")
-	if not open_success then
-		print("❌ 開啟新筆記失敗: " .. open_result)
+	-- 自動開啟新建立的筆記，使用與正常開啟筆記相同的邏輯
+	local bufnr = vim.api.nvim_get_current_buf()
+	local tree_state = M.get_tree_state_for_buffer(bufnr)
+	
+	if tree_state then
+		-- 使用與 Enter 鍵相同的邏輯開啟筆記
+		local target_win = M.find_target_window(tree_state)
+		local config = require("joplin.config")
+		M.open_note_in_window(result.id, target_win, config.options.keymaps.enter)
+		print("✅ 新筆記已在上方視窗開啟")
 	else
-		print("✅ 新筆記已在 vsplit 中開啟")
+		-- 如果沒有樹狀結構，回退到原來的方式
+		local buffer_utils = require('joplin.utils.buffer')
+		local open_success, open_result = pcall(buffer_utils.open_note, result.id, "vsplit")
+		if not open_success then
+			print("❌ 開啟新筆記失敗: " .. open_result)
+		else
+			print("✅ 新筆記已在 vsplit 中開啟")
+		end
 	end
 	
 	return result
