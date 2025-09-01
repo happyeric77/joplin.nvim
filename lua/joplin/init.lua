@@ -1,7 +1,10 @@
 local config = require("joplin.config")
 local api = require("joplin.api.client")
-
+local config = require("joplin.config")
 local M = {}
+
+-- 全局變數來存儲每個 buffer 的 tree_state
+local buffer_tree_states = {}
 
 function M.setup(opts)
 	opts = opts or {}
@@ -369,6 +372,17 @@ function M.simple_neotree_joplin()
 		-- 重建顯示內容
 		M.rebuild_tree_display(tree_state)
 		
+		-- 儲存 tree_state 供其他函數使用
+		buffer_tree_states[bufnr] = tree_state
+		
+		-- 設置 autocmd 來清理 tree_state
+		vim.api.nvim_create_autocmd("BufDelete", {
+			buffer = bufnr,
+			callback = function()
+				buffer_tree_states[bufnr] = nil
+			end,
+		})
+		
 		-- 設置鍵盤映射
 		M.setup_tree_keymaps(tree_state)
 		
@@ -377,7 +391,7 @@ function M.simple_neotree_joplin()
 		vim.api.nvim_set_current_buf(bufnr)
 		
 		print("✅ Joplin 樹狀瀏覽器已開啟")
-		print("💡 按 Enter 展開資料夾（按需載入筆記），按 o 開啟筆記")
+		print("💡 快捷鍵：Enter=展開, o=開啟, a=建立, D=刪除, R=重新整理, q=關閉")
 	end)
 	
 	if not success then
@@ -561,6 +575,24 @@ function M.setup_tree_keymaps(tree_state)
 		noremap = true,
 		silent = true
 	})
+	
+	-- a: 建立新項目 (筆記或資料夾)
+	vim.api.nvim_buf_set_keymap(bufnr, 'n', 'a', '', {
+		noremap = true,
+		silent = true,
+		callback = function()
+			M.create_item_from_tree()
+		end
+	})
+	
+	-- d: 刪除筆記或資料夾
+	vim.api.nvim_buf_set_keymap(bufnr, 'n', 'd', '', {
+		noremap = true,
+		silent = true,
+		callback = function()
+			M.delete_item_from_tree()
+		end
+	})
 end
 
 -- 除錯當前行
@@ -686,17 +718,17 @@ function M.open_note_from_tree(note_id)
 	end
 	
 	local buffer_utils = require('joplin.utils.buffer')
-	local success, result = pcall(buffer_utils.open_note, note_id)
+	local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
 	if not success then
 		print("❌ 開啟 note 失敗: " .. result)
 	else
-		print("✅ Note 開啟成功")
+		print("✅ Note 在 vsplit 中開啟成功")
 	end
 end
 
 -- 重新整理樹狀檢視
 function M.refresh_tree(tree_state)
-	-- 重新獲取資料
+	-- 重新獲取資料夾
 	local folders_success, folders = api.get_folders()
 	if not folders_success then
 		print("❌ Failed to refresh folders")
@@ -705,23 +737,22 @@ function M.refresh_tree(tree_state)
 	
 	tree_state.folders = folders
 	
-	-- 重新獲取每個 folder 的 notes（包括所有新的 folders）
-	tree_state.folder_notes = {}
-	for _, folder in ipairs(folders) do
-		local notes_success, notes = api.get_notes(folder.id)
-		if notes_success then
-			tree_state.folder_notes[folder.id] = notes
-		else
-			tree_state.folder_notes[folder.id] = {}
-		end
-	end
-	
-	-- 重新初始化展開狀態（保留已展開的狀態）
+	-- 保留已展開資料夾的筆記，清除其他資料夾的筆記
+	local old_folder_notes = tree_state.folder_notes
 	local old_expanded = tree_state.expanded
+	tree_state.folder_notes = {}
 	tree_state.expanded = {}
+	
+	-- 重新初始化展開狀態，並保留已展開資料夾的筆記
 	for _, folder in ipairs(folders) do
-		-- 如果之前展開過，保持展開狀態，否則設為收縮
-		tree_state.expanded[folder.id] = old_expanded[folder.id] or false
+		local was_expanded = old_expanded[folder.id] or false
+		tree_state.expanded[folder.id] = was_expanded
+		
+		-- 如果資料夾之前是展開的且有筆記資料，保留這些資料
+		if was_expanded and old_folder_notes[folder.id] then
+			tree_state.folder_notes[folder.id] = old_folder_notes[folder.id]
+		end
+		-- 否則不預先載入筆記（按需載入）
 	end
 	
 	M.rebuild_tree_display(tree_state)
@@ -770,6 +801,8 @@ function M.show_help()
 	print("🌳 樹狀瀏覽器操作:")
 	print("  Enter    - 展開/收縮資料夾 或 開啟筆記")
 	print("  o        - 開啟筆記 或 展開資料夾")
+	print("  a        - 建立新項目 (名稱以 '/' 結尾建立資料夾，否則建立筆記)")
+	print("  D        - 刪除筆記 (需要確認)")
 	print("  R        - 重新整理樹狀結構")
 	print("  d        - 顯示當前行的除錯資訊")
 	print("  q        - 關閉瀏覽器")
@@ -783,6 +816,324 @@ function M.show_help()
 	print("  :NeotreeJoplin   - 嘗試 Neo-tree 整合 (可能不穩定)")
 	print("")
 	print("💡 需要協助？請參考 GitHub repository 或提交 issue")
+end
+
+-- 建立新筆記
+function M.create_note(folder_id, title)
+	if not title or title == "" then
+		print("❌ 筆記標題不能為空")
+		return
+	end
+	
+	if not folder_id then
+		print("❌ 需要指定資料夾 ID")
+		return
+	end
+	
+	print("📝 建立新筆記: " .. title)
+	
+	local success, result = api.create_note(title, "", folder_id)
+	if not success then
+		print("❌ 建立筆記失敗: " .. result)
+		vim.notify("Failed to create note: " .. result, vim.log.levels.ERROR)
+		return
+	end
+	
+	print("✅ 筆記建立成功: " .. result.id)
+	vim.notify("Note created successfully: " .. title, vim.log.levels.INFO)
+	
+	-- 自動開啟新建立的筆記
+	local buffer_utils = require('joplin.utils.buffer')
+	local open_success, open_result = pcall(buffer_utils.open_note, result.id, "vsplit")
+	if not open_success then
+		print("❌ 開啟新筆記失敗: " .. open_result)
+	else
+		print("✅ 新筆記已在 vsplit 中開啟")
+	end
+	
+	return result
+end
+
+-- 刪除筆記
+function M.delete_note(note_id)
+	if not note_id then
+		print("❌ 需要指定筆記 ID")
+		return
+	end
+	
+	-- 確認刪除
+	local confirm = vim.fn.input("確定要刪除此筆記嗎？(y/n): ")
+	if confirm ~= "y" and confirm ~= "Y" then
+		print("❌ 取消刪除操作")
+		return false
+	end
+	
+	print("🗑️  刪除筆記 ID: " .. note_id)
+	
+	local success, result = api.delete_note(note_id)
+	if not success then
+		print("❌ 刪除筆記失敗: " .. result)
+		vim.notify("Failed to delete note: " .. result, vim.log.levels.ERROR)
+		return false
+	end
+	
+	print("✅ 筆記刪除成功")
+	vim.notify("Note deleted successfully", vim.log.levels.INFO)
+	
+	return true
+end
+
+-- 刪除資料夾
+function M.delete_folder(folder_id)
+	if not folder_id then
+		print("❌ 需要指定資料夾 ID")
+		return false
+	end
+	
+	-- 確認刪除
+	local confirm = vim.fn.input("確定要刪除此資料夾嗎？(y/n): ")
+	if confirm ~= "y" and confirm ~= "Y" then
+		print("❌ 取消刪除操作")
+		return false
+	end
+	
+	print("🗑️  刪除資料夾 ID: " .. folder_id)
+	
+	local success, result = api.delete_folder(folder_id)
+	if not success then
+		print("❌ 刪除資料夾失敗: " .. result)
+		vim.notify("Failed to delete folder: " .. result, vim.log.levels.ERROR)
+		return false
+	end
+	
+	print("✅ 資料夾刪除成功")
+	vim.notify("Folder deleted successfully", vim.log.levels.INFO)
+	
+	return true
+end
+
+-- 獲取指定 buffer 的 tree_state
+function M.get_tree_state_for_buffer(bufnr)
+	return buffer_tree_states[bufnr]
+end
+
+-- 從樹狀檢視建立新項目 (筆記或資料夾)
+function M.create_item_from_tree()
+	-- 獲取當前 buffer 的 tree_state
+	local bufnr = vim.api.nvim_get_current_buf()
+	local tree_state = M.get_tree_state_for_buffer(bufnr)
+	
+	if not tree_state then
+		print("❌ 無法找到樹狀檢視狀態")
+		return
+	end
+	
+	local line_num = vim.api.nvim_win_get_cursor(0)[1]
+	local line_data = tree_state.line_data[line_num]
+	
+	if not line_data then
+		print("❌ 無法解析當前行")
+		return
+	end
+	
+	local parent_folder_id = nil
+	
+	-- 如果當前行是資料夾，使用該資料夾作為父資料夾
+	if line_data.type == "folder" then
+		parent_folder_id = line_data.id
+	-- 如果當前行是筆記，使用其父資料夾
+	elseif line_data.type == "note" then
+		-- 需要找到該筆記的父資料夾 ID
+		local success, note = api.get_note(line_data.id)
+		if success and note.parent_id then
+			parent_folder_id = note.parent_id
+		else
+			print("❌ 無法確定父資料夾，請在資料夾行上建立新項目")
+			return
+		end
+	else
+		print("❌ 請選擇一個資料夾或筆記來建立新項目")
+		return
+	end
+	
+	-- 顯示輸入對話框
+	local input = vim.fn.input("建立新項目 (以 '/' 結尾建立資料夾): ")
+	if input == "" then
+		print("❌ 取消建立操作")
+		return
+	end
+	
+	local result = nil
+	
+	-- 檢查是否以 '/' 結尾
+	if input:sub(-1) == "/" then
+		-- 建立資料夾
+		local folder_name = input:sub(1, -2)  -- 移除最後的 '/'
+		if folder_name == "" then
+			print("❌ 資料夾名稱不能為空")
+			return
+		end
+		result = M.create_folder(parent_folder_id, folder_name)
+	else
+		-- 建立筆記
+		result = M.create_note(parent_folder_id, input)
+	end
+	
+	-- 如果建立成功，立即更新本地狀態
+	if result then
+		print("✅ 項目建立成功，更新顯示...")
+		
+		-- 如果建立的是資料夾，立即添加到本地狀態
+		if input:sub(-1) == "/" then
+			-- 添加新資料夾到本地狀態
+			local new_folder = {
+				id = result.id,
+				title = result.title,
+				parent_id = parent_folder_id
+			}
+			table.insert(tree_state.folders, new_folder)
+			tree_state.expanded[result.id] = false
+			tree_state.loading[result.id] = false
+		else
+			-- 如果建立的是筆記，將新筆記添加到已載入的筆記列表中
+			if tree_state.folder_notes[parent_folder_id] then
+				-- 如果該資料夾的筆記已經載入，將新筆記添加到列表中
+				local new_note = {
+					id = result.id,
+					title = result.title,
+					parent_id = parent_folder_id,
+					created_time = result.created_time,
+					updated_time = result.updated_time
+				}
+				table.insert(tree_state.folder_notes[parent_folder_id], new_note)
+				
+				-- 按標題排序筆記列表
+				table.sort(tree_state.folder_notes[parent_folder_id], function(a, b)
+					return (a.title or "") < (b.title or "")
+				end)
+			else
+				-- 如果該資料夾的筆記尚未載入，不需要做任何事
+				-- 下次展開時會自動載入包含新筆記的完整列表
+			end
+		end
+		
+		-- 立即重建顯示
+		M.rebuild_tree_display(tree_state)
+	end
+end
+
+-- 輕量級樹狀檢視重新整理（只更新資料夾列表，不重新載入所有筆記）
+function M.refresh_tree_lightweight(tree_state)
+	-- 重新獲取資料夾列表
+	local folders_success, folders = api.get_folders()
+	if not folders_success then
+		print("❌ Failed to refresh folders")
+		return
+	end
+	
+	-- 更新資料夾列表
+	tree_state.folders = folders
+	
+	-- 為新資料夾初始化狀態（不影響已存在的資料夾）
+	for _, folder in ipairs(folders) do
+		if tree_state.expanded[folder.id] == nil then
+			tree_state.expanded[folder.id] = false
+		end
+		if tree_state.loading[folder.id] == nil then
+			tree_state.loading[folder.id] = false
+		end
+	end
+	
+	-- 重建顯示內容
+	M.rebuild_tree_display(tree_state)
+	print("✅ 樹狀檢視已更新")
+end
+
+-- 建立新資料夾
+function M.create_folder(parent_id, title)
+	if not title or title == "" then
+		print("❌ 資料夾標題不能為空")
+		return
+	end
+	
+	if not parent_id then
+		print("❌ 需要指定父資料夾 ID")
+		return
+	end
+	
+	print("📁 建立新資料夾: " .. title)
+	
+	local success, result = api.create_folder(title, parent_id)
+	if not success then
+		print("❌ 建立資料夾失敗: " .. result)
+		vim.notify("Failed to create folder: " .. result, vim.log.levels.ERROR)
+		return
+	end
+	
+	print("✅ 資料夾建立成功: " .. result.id)
+	vim.notify("Folder created successfully: " .. title, vim.log.levels.INFO)
+	
+	return result
+end
+
+-- 從樹狀檢視刪除筆記或資料夾
+function M.delete_item_from_tree()
+	-- 獲取當前 buffer 的 tree_state
+	local bufnr = vim.api.nvim_get_current_buf()
+	local tree_state = M.get_tree_state_for_buffer(bufnr)
+	
+	if not tree_state then
+		print("❌ 無法找到樹狀檢視狀態")
+		return
+	end
+	
+	local line_num = vim.api.nvim_win_get_cursor(0)[1]
+	local line_data = tree_state.line_data[line_num]
+	
+	if not line_data then
+		print("❌ 無法解析當前行")
+		return
+	end
+	
+	if line_data.type ~= "note" and line_data.type ~= "folder" then
+		print("❌ 只能刪除筆記或資料夾")
+		return
+	end
+	
+	local success
+	if line_data.type == "note" then
+		success = M.delete_note(line_data.id)
+	else -- folder
+		success = M.delete_folder(line_data.id)
+	end
+	
+	-- 如果刪除成功，立即更新本地狀態
+	if success then
+		if line_data.type == "note" then
+			print("✅ 筆記刪除成功，更新顯示...")
+			
+			-- 從已載入的筆記列表中移除該筆記
+			for folder_id, notes in pairs(tree_state.folder_notes) do
+				if notes then
+					for i, note in ipairs(notes) do
+						if note.id == line_data.id then
+							table.remove(notes, i)
+							break
+						end
+					end
+				end
+			end
+		else -- folder
+			print("✅ 資料夾刪除成功，更新顯示...")
+			
+			-- 清除與該資料夾相關的快取
+			tree_state.folder_notes[line_data.id] = nil
+			tree_state.folder_expanded[line_data.id] = nil
+		end
+		
+		-- 重建樹狀顯示
+		M.rebuild_tree_display(tree_state)
+	end
 end
 
 return M

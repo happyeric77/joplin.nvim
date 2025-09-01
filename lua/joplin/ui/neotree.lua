@@ -10,6 +10,32 @@ local M = {
   display_name = "Joplin"
 }
 
+-- 保存和恢復節點展開狀態的輔助函數
+local function save_expanded_state(state)
+  local expanded_nodes = {}
+  if state.tree and state.tree.root and state.tree.root.children then
+    for _, child in ipairs(state.tree.root.children) do
+      if child:is_expanded() then
+        expanded_nodes[child.id] = true
+      end
+    end
+  end
+  return expanded_nodes
+end
+
+local function restore_expanded_state(state, expanded_nodes)
+  if not expanded_nodes or not state.tree or not state.tree.root or not state.tree.root.children then
+    return
+  end
+  
+  for _, child in ipairs(state.tree.root.children) do
+    if expanded_nodes[child.id] then
+      child:expand()
+    end
+  end
+  renderer.redraw(state)
+end
+
 local function get_icon(node_type)
   if node_type == "folder" then
     return {
@@ -202,7 +228,16 @@ function M.setup(config, global_config)
       end,
       
       refresh = function(state)
+        -- 保存展開狀態
+        local expanded_nodes = save_expanded_state(state)
+        
+        -- 刷新並恢復展開狀態
         manager.refresh(M.name)
+        
+        -- 延遲恢復展開狀態
+        vim.defer_fn(function()
+          restore_expanded_state(state, expanded_nodes)
+        end, 100)
       end,
       
       toggle_node = function(state)
@@ -217,6 +252,7 @@ function M.setup(config, global_config)
       add_folder = function(state)
         local node = state.tree:get_node()
         local parent_id = nil
+        
         if node and node.type == "folder" then
           parent_id = node.id
         end
@@ -226,7 +262,17 @@ function M.setup(config, global_config)
             local success, result = api.create_folder(input, parent_id)
             if success then
               vim.notify("Folder created successfully", vim.log.levels.INFO)
+              
+              -- 保存展開狀態
+              local expanded_nodes = save_expanded_state(state)
+              
+              -- 刷新並恢復展開狀態
               manager.refresh(M.name)
+              
+              -- 延遲恢復展開狀態，等待樹狀結構重建完成
+              vim.defer_fn(function()
+                restore_expanded_state(state, expanded_nodes)
+              end, 100)
             else
               vim.notify("Failed to create folder: " .. result, vim.log.levels.ERROR)
             end
@@ -237,6 +283,7 @@ function M.setup(config, global_config)
       add_note = function(state)
         local node = state.tree:get_node()
         local parent_id = nil
+        
         if node and node.type == "folder" then
           parent_id = node.id
         end
@@ -246,11 +293,22 @@ function M.setup(config, global_config)
             local success, result = api.create_note(input, "", parent_id)
             if success then
               vim.notify("Note created successfully", vim.log.levels.INFO)
+              
+              -- 保存展開狀態
+              local expanded_nodes = save_expanded_state(state)
+              
+              -- 刷新並恢復展開狀態
               manager.refresh(M.name)
-              -- 自動打開新建的筆記
-              if result and result.id then
-                buffer_utils.open_note(result.id, "edit")
-              end
+              
+              -- 延遲恢復展開狀態和打開筆記
+              vim.defer_fn(function()
+                restore_expanded_state(state, expanded_nodes)
+                
+                -- 自動打開新建的筆記
+                if result and result.id then
+                  buffer_utils.open_note(result.id, "edit")
+                end
+              end, 100)
             else
               vim.notify("Failed to create note: " .. result, vim.log.levels.ERROR)
             end
@@ -278,7 +336,17 @@ function M.setup(config, global_config)
             
             if success then
               vim.notify(string.format("%s deleted successfully", item_type:gsub("^%l", string.upper)), vim.log.levels.INFO)
+              
+              -- 保存展開狀態
+              local expanded_nodes = save_expanded_state(state)
+              
+              -- 刷新並恢復展開狀態
               manager.refresh(M.name)
+              
+              -- 延遲恢復展開狀態
+              vim.defer_fn(function()
+                restore_expanded_state(state, expanded_nodes)
+              end, 100)
             else
               vim.notify(string.format("Failed to delete %s: %s", item_type, result), vim.log.levels.ERROR)
             end

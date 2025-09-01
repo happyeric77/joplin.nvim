@@ -28,6 +28,35 @@ local function sleep(ms)
 	vim.fn.system(string.format("sleep %f", ms / 1000))
 end
 
+-- 執行刪除請求（DELETE 請求成功時可能返回空響應）
+local function execute_delete_request(cmd, retry_count)
+	retry_count = retry_count or DEFAULT_RETRY_COUNT
+	local last_error = nil
+
+	for attempt = 1, retry_count do
+		local result = vim.fn.system(cmd)
+
+		if vim.v.shell_error == 0 then
+			-- DELETE 請求成功，即使回應為空也視為成功
+			return true, result or ""
+		else
+			last_error = string.format(
+				"HTTP DELETE request failed (attempt %d/%d): %s",
+				attempt,
+				retry_count,
+				result or "Unknown error"
+			)
+
+			-- 如果不是最後一次嘗試，等待後重試
+			if attempt < retry_count then
+				sleep(DEFAULT_RETRY_DELAY * attempt) -- 指數退避
+			end
+		end
+	end
+
+	return false, last_error
+end
+
 -- 執行 HTTP 請求與重試邏輯
 local function execute_request(cmd, retry_count)
 	retry_count = retry_count or DEFAULT_RETRY_COUNT
@@ -93,6 +122,30 @@ function M.post(path, data, params)
 	local success, result = execute_request(cmd)
 	if not success then
 		error("Joplin API POST failed: " .. result)
+	end
+
+	-- 嘗試解析 JSON
+	local ok, decoded = pcall(vim.fn.json_decode, result)
+	if not ok then
+		error("Invalid JSON response: " .. result)
+	end
+
+	return decoded
+end
+
+-- 基本 PUT 請求
+function M.put(path, data, params)
+	local url = build_url(path, params)
+	local json_data = vim.fn.json_encode(data or {})
+	local cmd = string.format(
+		'curl -s -m 10 -X PUT -H "Content-Type: application/json" -d %s "%s"',
+		vim.fn.shellescape(json_data),
+		url
+	)
+
+	local success, result = execute_request(cmd)
+	if not success then
+		error("Joplin API PUT failed: " .. result)
 	end
 
 	-- 嘗試解析 JSON
@@ -288,7 +341,7 @@ function M.update_note(note_id, data)
 	end
 
 	local ok, result = pcall(function()
-		return M.post(endpoints.NOTES .. "/" .. note_id, data)
+		return M.put(endpoints.NOTES .. "/" .. note_id, data)
 	end)
 
 	if not ok then
@@ -307,7 +360,7 @@ function M.delete_folder(folder_id)
 	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
 		build_url(endpoints.FOLDERS .. "/" .. folder_id))
 
-	local success, result = execute_request(cmd)
+	local success, result = execute_delete_request(cmd)
 	if not success then
 		return false, "Failed to delete folder: " .. result
 	end
@@ -324,7 +377,7 @@ function M.delete_note(note_id)
 	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
 		build_url(endpoints.NOTES .. "/" .. note_id))
 
-	local success, result = execute_request(cmd)
+	local success, result = execute_delete_request(cmd)
 	if not success then
 		return false, "Failed to delete note: " .. result
 	end

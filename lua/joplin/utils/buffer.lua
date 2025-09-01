@@ -116,23 +116,31 @@ function M.save_note(bufnr)
     return false
   end
   
+  print("🔍 開始保存筆記 ID: " .. note_info.note_id)
+  
   -- 獲取 buffer 內容
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local content = table.concat(lines, "\n")
+  
+  print("📝 筆記內容長度: " .. #content .. " 字元")
   
   -- 準備更新數據
   local update_data = {
     body = content,
   }
   
+  print("🚀 發送 API 更新請求...")
+  
   -- 調用 API 更新筆記
   local success, result = api.update_note(note_info.note_id, update_data)
   
   if success then
     vim.api.nvim_buf_set_option(bufnr, "modified", false)
+    print("✅ 筆記儲存成功")
     vim.notify("Note saved successfully", vim.log.levels.INFO)
     return true
   else
+    print("❌ 筆記儲存失敗: " .. tostring(result))
     vim.notify("Failed to save note: " .. tostring(result), vim.log.levels.ERROR)
     return false
   end
