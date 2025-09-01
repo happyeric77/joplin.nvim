@@ -197,4 +197,117 @@ function M.get_tree_state_for_buffer(bufnr)
 	return buffer_tree_states[bufnr]
 end
 
+-- 建立 folder ID 到 folder 物件的映射
+function M.build_folder_map(folders)
+	local folder_map = {}
+	for _, folder in ipairs(folders) do
+		folder_map[folder.id] = folder
+	end
+	return folder_map
+end
+
+-- 獲取到達目標 folder 的路徑（從根到目標的 folder ID 列表）
+function M.get_folder_path(target_folder_id, folder_map)
+	local path = {}
+	local current_id = target_folder_id
+	
+	-- 從目標 folder 向上追溯到根 folder
+	while current_id do
+		table.insert(path, 1, current_id) -- 在前面插入，保持從根到目標的順序
+		local folder = folder_map[current_id]
+		if not folder then
+			break
+		end
+		current_id = folder.parent_id
+		-- 如果 parent_id 為空或空字串，表示已到達根層級
+		if not current_id or current_id == "" then
+			break
+		end
+	end
+	
+	return path
+end
+
+-- 展開到指定的 folder 並載入其筆記
+function M.expand_to_folder(target_folder_id)
+	-- 尋找活躍的樹狀檢視 buffer
+	local tree_bufnr = nil
+	for bufnr, _ in pairs(buffer_tree_states) do
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			tree_bufnr = bufnr
+			break
+		end
+	end
+	
+	if not tree_bufnr then
+		print("❌ 沒有找到活躍的樹狀檢視")
+		return
+	end
+	
+	local tree_state = buffer_tree_states[tree_bufnr]
+	if not tree_state then
+		print("❌ 無法找到樹狀檢視狀態")
+		return
+	end
+	
+	-- 建立 folder 映射
+	local folder_map = M.build_folder_map(tree_state.folders)
+	
+	-- 檢查目標 folder 是否存在
+	if not folder_map[target_folder_id] then
+		print("❌ 找不到指定的資料夾: " .. target_folder_id)
+		return
+	end
+	
+	-- 獲取到目標 folder 的路徑
+	local path = M.get_folder_path(target_folder_id, folder_map)
+	
+	print("🗂️  展開路徑: " .. table.concat(path, " -> "))
+	
+	-- 逐層展開路徑上的每個 folder
+	for _, folder_id in ipairs(path) do
+		if not tree_state.expanded[folder_id] then
+			tree_state.expanded[folder_id] = true
+			
+			-- 載入該 folder 的筆記（如果尚未載入）
+			if not tree_state.folder_notes[folder_id] then
+				tree_state.loading[folder_id] = true
+				
+				-- 同步載入筆記（在展開過程中保持同步）
+				local success, notes = api.get_notes(folder_id)
+				if success then
+					tree_state.folder_notes[folder_id] = notes
+					print("✅ 已載入 " .. #notes .. " 個筆記 (" .. (folder_map[folder_id].title or "Unknown") .. ")")
+				else
+					tree_state.folder_notes[folder_id] = {}
+					print("❌ 載入筆記失敗: " .. notes)
+				end
+				tree_state.loading[folder_id] = false
+			end
+		end
+	end
+	
+	-- 重建樹狀顯示
+	local joplin = require("joplin")
+	joplin.rebuild_tree_display(tree_state)
+	
+	-- 尋找目標 folder 在顯示中的行號並定位游標
+	for line_num, line_data in ipairs(tree_state.line_data) do
+		if line_data.type == "folder" and line_data.id == target_folder_id then
+			-- 切換到樹狀檢視視窗
+			local tree_wins = vim.api.nvim_list_wins()
+			for _, winid in ipairs(tree_wins) do
+				local bufnr = vim.api.nvim_win_get_buf(winid)
+				if bufnr == tree_bufnr then
+					vim.api.nvim_set_current_win(winid)
+					vim.api.nvim_win_set_cursor(winid, {line_num, 0})
+					print("✅ 已定位到資料夾: " .. (folder_map[target_folder_id].title or "Unknown"))
+					break
+				end
+			end
+			break
+		end
+	end
+end
+
 return M

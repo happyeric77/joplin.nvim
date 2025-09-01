@@ -22,6 +22,7 @@ M.options = {
     enter = "replace",     -- Enter 行為：replace/vsplit
     o = "vsplit",          -- o 行為：vsplit/replace
     search = "<leader>js", -- 搜尋快捷鍵
+    search_notebook = "<leader>jsnb", -- notebook 搜尋快捷鍵
   }
 }
 

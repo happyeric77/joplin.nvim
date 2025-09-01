@@ -437,4 +437,18 @@ function M.search_notes(query, options)
 	return true, result
 end
 
+-- 搜尋 notebook（資料夾）
+function M.search_notebooks(query, options)
+	if not query or query == "" then
+		return false, "Search query is required"
+	end
+
+	options = options or {}
+	options.type = 'folder'
+	options.fields = options.fields or 'id,title,parent_id,created_time,updated_time'
+	options.order_by = options.order_by or 'updated_time'
+	
+	return M.search_notes(query, options)
+end
+
 return M

@@ -18,6 +18,15 @@ local function format_entry(note)
   return string.format("%-40s │ %s", title, date_str)
 end
 
+-- 格式化 notebook 搜尋結果顯示
+local function format_notebook_entry(notebook)
+  local title = notebook.title or "Untitled"
+  local updated = notebook.updated_time or 0
+  local date_str = os.date("%Y-%m-%d %H:%M", updated / 1000)
+  
+  return string.format("📁 %-37s │ %s", title, date_str)
+end
+
 -- 創建筆記預覽器
 local function create_note_previewer()
   return previewers.new_buffer_previewer({
@@ -112,6 +121,85 @@ function M.search_notes(opts)
         local selection = action_state.get_selected_entry()
         if selection then
           buffer_utils.open_note_split(selection.value)
+        end
+      end)
+      
+      return true
+    end,
+  }):find()
+end
+
+-- 執行 notebook 搜尋並顯示結果
+function M.search_notebooks(opts)
+  opts = opts or {}
+  local initial_query = opts.default_text or ""
+  
+  pickers.new(opts, {
+    prompt_title = "Search Joplin Notebooks",
+    finder = finders.new_dynamic {
+      fn = function(prompt)
+        -- 對於空查詢，返回一些初始結果
+        if not prompt or prompt == "" then
+          local success, result = client.search_notebooks("*", {
+            limit = 20,
+            fields = 'id,title,parent_id,updated_time,created_time'
+          })
+          
+          if success and result and result.items then
+            local entries = {}
+            for _, notebook in ipairs(result.items) do
+              table.insert(entries, {
+                value = notebook,
+                display = format_notebook_entry(notebook),
+                ordinal = tostring(notebook.title or "Untitled"), -- 確保是字符串
+              })
+            end
+            return entries
+          else
+            return {}
+          end
+        end
+        
+        -- 使用 get_folders() 並手動過濾
+        local success, folders = client.get_folders()
+        if not success then
+          return {}
+        end
+        
+        local filtered_entries = {}
+        local search_term = tostring(prompt):lower()
+        
+        for _, folder in ipairs(folders) do
+          local title = tostring(folder.title or "")
+          if title:lower():find(search_term, 1, true) then -- 使用 plain text 搜尋
+            table.insert(filtered_entries, {
+              value = folder,
+              display = format_notebook_entry(folder),
+              ordinal = title, -- 已經是字符串
+            })
+          end
+        end
+        
+        return filtered_entries
+      end,
+      entry_maker = function(entry)
+        -- 確保所有字段都是正確的類型
+        return {
+          value = entry.value,
+          display = tostring(entry.display),
+          ordinal = tostring(entry.ordinal),
+        }
+      end,
+    },
+    sorter = conf.generic_sorter(opts), -- 回到 generic_sorter
+    previewer = false,
+    attach_mappings = function(prompt_bufnr, map)
+      actions.select_default:replace(function()
+        actions.close(prompt_bufnr)
+        local selection = action_state.get_selected_entry()
+        if selection then
+          local joplin = require('joplin')
+          joplin.expand_to_folder(selection.value.id)
         end
       end)
       
