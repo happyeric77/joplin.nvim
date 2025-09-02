@@ -172,16 +172,16 @@ end
 
 -- 取得所有資料夾 (notebooks)
 function M.get_folders()
-	local limit = 100  -- 單次查詢限制
+	local limit = 100 -- 單次查詢限制
 	local all_folders = {}
 	local page = 1
 	local has_more = true
 
 	-- 分頁獲取所有資料夾
 	while has_more do
-		local params = { 
+		local params = {
 			limit = limit,
-			page = page
+			page = page,
 		}
 
 		local ok, result = pcall(function()
@@ -198,9 +198,9 @@ function M.get_folders()
 			end
 			has_more = result.has_more or false
 			page = page + 1
-			
+
 			-- 防止無限循環
-			if page > 50 then  -- 最多查詢 50 頁
+			if page > 50 then -- 最多查詢 50 頁
 				break
 			end
 		else
@@ -213,17 +213,17 @@ end
 
 -- 取得指定資料夾的筆記
 function M.get_notes(folder_id, limit)
-	limit = limit or 100  -- 單次查詢限制
+	limit = limit or 100 -- 單次查詢限制
 	local all_notes = {}
 	local page = 1
 	local has_more = true
 
 	-- 分頁獲取所有筆記
 	while has_more do
-		local params = { 
+		local params = {
 			limit = limit,
 			page = page,
-			fields = 'id,title,updated_time,created_time,parent_id'
+			fields = "id,title,updated_time,created_time,parent_id",
 		}
 
 		local ok, result = pcall(function()
@@ -240,26 +240,26 @@ function M.get_notes(folder_id, limit)
 			end
 			has_more = result.has_more or false
 			page = page + 1
-			
+
 			-- 防止無限循環
-			if page > 50 then  -- 最多查詢 50 頁
+			if page > 50 then -- 最多查詢 50 頁
 				break
 			end
 		else
 			has_more = false
 		end
 	end
-	
+
 	-- 如果有指定 folder_id，過濾出屬於該資料夾的筆記
 	if folder_id then
 		local filtered_notes = {}
-		
+
 		for _, note in ipairs(all_notes) do
 			if note.parent_id == folder_id then
 				table.insert(filtered_notes, note)
 			end
 		end
-		
+
 		return true, filtered_notes
 	end
 
@@ -274,7 +274,7 @@ function M.get_note(note_id)
 
 	local ok, result = pcall(function()
 		return M.get(endpoints.NOTES .. "/" .. note_id, {
-			fields = 'id,title,body,parent_id,created_time,updated_time'
+			fields = "id,title,body,parent_id,created_time,updated_time",
 		})
 	end)
 
@@ -374,8 +374,7 @@ function M.delete_folder(folder_id)
 		return false, "Folder ID is required"
 	end
 
-	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
-		build_url(endpoints.FOLDERS .. "/" .. folder_id))
+	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', build_url(endpoints.FOLDERS .. "/" .. folder_id))
 
 	local success, result = execute_delete_request(cmd)
 	if not success then
@@ -391,8 +390,7 @@ function M.delete_note(note_id)
 		return false, "Note ID is required"
 	end
 
-	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', 
-		build_url(endpoints.NOTES .. "/" .. note_id))
+	local cmd = string.format('curl -s -m 10 -X DELETE "%s"', build_url(endpoints.NOTES .. "/" .. note_id))
 
 	local success, result = execute_delete_request(cmd)
 	if not success then
@@ -411,10 +409,10 @@ function M.search_notes(query, options)
 	options = options or {}
 	local limit = options.limit or 50
 	local page = options.page or 1
-	local fields = options.fields or 'id,title,body,parent_id,updated_time'
-	local order_by = options.order_by or 'updated_time'
-	local order_dir = options.order_dir or 'desc'
-	local type = options.type or 'note'
+	local fields = options.fields or "id,title,body,parent_id,updated_time"
+	local order_by = options.order_by or "updated_time"
+	local order_dir = options.order_dir or "desc"
+	local type = options.type or "note"
 
 	local params = {
 		query = query,
@@ -423,7 +421,7 @@ function M.search_notes(query, options)
 		limit = limit,
 		page = page,
 		order_by = order_by,
-		order_dir = order_dir
+		order_dir = order_dir,
 	}
 
 	local ok, result = pcall(function()
@@ -444,10 +442,10 @@ function M.search_notebooks(query, options)
 	end
 
 	options = options or {}
-	options.type = 'folder'
-	options.fields = options.fields or 'id,title,parent_id,created_time,updated_time'
-	options.order_by = options.order_by or 'updated_time'
-	
+	options.type = "folder"
+	options.fields = options.fields or "id,title,parent_id,created_time,updated_time"
+	options.order_by = options.order_by or "updated_time"
+
 	return M.search_notes(query, options)
 end
 
