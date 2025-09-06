@@ -83,6 +83,15 @@ function M.setup_tree_keymaps(bufnr)
 			require("joplin").rename_item_from_tree()
 		end,
 	})
+
+	-- m: 移動筆記或資料夾
+	vim.api.nvim_buf_set_keymap(bufnr, "n", "m", "", {
+		noremap = true,
+		silent = true,
+		callback = function()
+			require("joplin").move_item_from_tree()
+		end,
+	})
 end
 
 -- 重建樹狀顯示
@@ -497,4 +506,3 @@ function M.expand_to_folder(target_folder_id, silent)
 end
 
 return M
-

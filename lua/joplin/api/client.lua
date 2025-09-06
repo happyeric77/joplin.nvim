@@ -449,4 +449,54 @@ function M.search_notebooks(query, options)
 	return M.search_notes(query, options)
 end
 
+-- 移動筆記到指定資料夾
+function M.move_note(note_id, new_parent_id)
+	if not note_id then
+		return false, "Note ID is required"
+	end
+
+	if not new_parent_id then
+		return false, "New parent folder ID is required"
+	end
+
+	local data = {
+		parent_id = new_parent_id,
+	}
+
+	local ok, result = pcall(function()
+		return M.put(endpoints.NOTES .. "/" .. note_id, data)
+	end)
+
+	if not ok then
+		return false, "Failed to move note: " .. result
+	end
+
+	return true, result
+end
+
+-- 移動資料夾到指定父資料夾
+function M.move_folder(folder_id, new_parent_id)
+	if not folder_id then
+		return false, "Folder ID is required"
+	end
+
+	if not new_parent_id then
+		return false, "New parent folder ID is required"
+	end
+
+	local data = {
+		parent_id = new_parent_id,
+	}
+
+	local ok, result = pcall(function()
+		return M.put(endpoints.FOLDERS .. "/" .. folder_id, data)
+	end)
+
+	if not ok then
+		return false, "Failed to move folder: " .. result
+	end
+
+	return true, result
+end
+
 return M

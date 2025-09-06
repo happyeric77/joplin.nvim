@@ -165,10 +165,10 @@ end
 -- 切換樹狀檢視
 function M.toggle_tree()
 	local tree_ui = require("joplin.ui.tree")
-	
+
 	-- 尋找活躍的樹狀檢視視窗
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
-	
+
 	if tree_winid then
 		-- 如果找到活躍的樹狀檢視視窗，關閉它
 		vim.api.nvim_win_close(tree_winid, false)
@@ -596,6 +596,7 @@ function M.show_help()
 	print("  A        - 建立新資料夾 (快捷方式)")
 	print("  d        - 刪除筆記或資料夾 (需要確認)")
 	print("  r        - 重新命名筆記或資料夾")
+	print("  m        - 移動筆記或資料夾 (使用 Telescope 選擇目標)")
 	print("  R        - 重新整理樹狀結構")
 	print("  q        - 關閉樹狀瀏覽器")
 	print("")
@@ -1259,10 +1260,10 @@ end
 function M.debug_expand_folder(folder_id)
 	print("=== Debug Expand Folder ===")
 	print("Target folder ID: " .. (folder_id or "nil"))
-	
+
 	local tree_ui = require("joplin.ui.tree")
 	local api = require("joplin.api.client")
-	
+
 	-- 檢查 API 連接
 	local ping_success, ping_result = api.ping()
 	if not ping_success then
@@ -1270,7 +1271,7 @@ function M.debug_expand_folder(folder_id)
 		return
 	end
 	print("✅ API connected: " .. ping_result)
-	
+
 	-- 獲取所有資料夾
 	local folders_success, folders = api.get_folders()
 	if not folders_success then
@@ -1278,7 +1279,7 @@ function M.debug_expand_folder(folder_id)
 		return
 	end
 	print("✅ Retrieved " .. #folders .. " folders")
-	
+
 	-- 檢查目標資料夾是否存在
 	local target_folder = nil
 	for _, folder in ipairs(folders) do
@@ -1287,7 +1288,7 @@ function M.debug_expand_folder(folder_id)
 			break
 		end
 	end
-	
+
 	if not target_folder then
 		print("❌ Target folder not found!")
 		print("Available folders:")
@@ -1296,10 +1297,10 @@ function M.debug_expand_folder(folder_id)
 		end
 		return
 	end
-	
+
 	print("✅ Found target folder: " .. (target_folder.title or "Untitled"))
 	print("    Parent ID: " .. (target_folder.parent_id or "none"))
-	
+
 	-- 檢查樹狀檢視狀態
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
 	if tree_winid then
@@ -1308,7 +1309,7 @@ function M.debug_expand_folder(folder_id)
 	else
 		print("⚠️  No active tree window found")
 	end
-	
+
 	print("=== Attempting expand ===")
 	M.expand_to_folder(folder_id)
 end
@@ -1319,14 +1320,14 @@ function M.expand_to_folder(folder_id)
 		vim.notify("Folder ID is required", vim.log.levels.ERROR)
 		return
 	end
-	
+
 	print("🔍 正在展開到資料夾: " .. folder_id)
-	
+
 	local tree_ui = require("joplin.ui.tree")
-	
+
 	-- 檢查是否已有活躍的樹狀檢視視窗
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
-	
+
 	if tree_winid then
 		-- 如果已有樹狀檢視視窗，直接在其中展開
 		print("✅ 使用現有的樹狀檢視")
@@ -1345,7 +1346,7 @@ function M.expand_to_folder(folder_id)
 		-- 如果沒有樹狀檢視視窗，創建新的
 		print("📂 創建新的樹狀檢視")
 		M.create_tree()
-		
+
 		-- 等待 tree 創建完成後再展開
 		vim.defer_fn(function()
 			local success = tree_ui.expand_to_folder(folder_id)
@@ -1357,6 +1358,111 @@ function M.expand_to_folder(folder_id)
 			end
 		end, 150) -- 稍微增加延遲確保樹狀檢視完全創建
 	end
+end
+
+-- 移動筆記到指定資料夾
+function M.move_note(note_id, new_parent_id)
+	if not note_id then
+		print("❌ 需要指定筆記 ID")
+		return false
+	end
+
+	if not new_parent_id then
+		print("❌ 需要指定目標資料夾 ID")
+		return false
+	end
+
+	print("📝 移動筆記 ID: " .. note_id .. " -> 資料夾 ID: " .. new_parent_id)
+
+	local success, result = api.move_note(note_id, new_parent_id)
+	if not success then
+		print("❌ 移動筆記失敗: " .. result)
+		vim.notify("Failed to move note: " .. result, vim.log.levels.ERROR)
+		return false
+	end
+
+	print("✅ 筆記移動成功")
+	vim.notify("Note moved successfully", vim.log.levels.INFO)
+
+	return true
+end
+
+-- 移動資料夾到指定父資料夾
+function M.move_folder(folder_id, new_parent_id)
+	if not folder_id then
+		print("❌ 需要指定資料夾 ID")
+		return false
+	end
+
+	if not new_parent_id then
+		print("❌ 需要指定目標父資料夾 ID")
+		return false
+	end
+
+	print("📁 移動資料夾 ID: " .. folder_id .. " -> 父資料夾 ID: " .. new_parent_id)
+
+	local success, result = api.move_folder(folder_id, new_parent_id)
+	if not success then
+		print("❌ 移動資料夾失敗: " .. result)
+		vim.notify("Failed to move folder: " .. result, vim.log.levels.ERROR)
+		return false
+	end
+
+	print("✅ 資料夾移動成功")
+	vim.notify("Folder moved successfully", vim.log.levels.INFO)
+
+	return true
+end
+
+-- 從樹狀檢視移動筆記或資料夾
+function M.move_item_from_tree()
+	-- 獲取當前 buffer 的 tree_state
+	local bufnr = vim.api.nvim_get_current_buf()
+	local tree_state = M.get_tree_state_for_buffer(bufnr)
+
+	if not tree_state then
+		print("❌ 無法找到樹狀檢視狀態")
+		return
+	end
+
+	local line_num = vim.api.nvim_win_get_cursor(0)[1]
+	local line_data = tree_state.line_data[line_num]
+
+	if not line_data then
+		print("❌ 無法解析當前行")
+		return
+	end
+
+	if line_data.type ~= "note" and line_data.type ~= "folder" then
+		print("❌ 只能移動筆記或資料夾")
+		return
+	end
+
+	-- 獲取項目資訊
+	local item_type = line_data.type
+	local item_id = line_data.id
+	local item_title = line_data.title or "Unknown"
+
+	print("📦 準備移動 " .. item_type .. ": " .. item_title)
+
+	-- 檢查 Telescope 是否可用
+	local search_ui = require("joplin.ui.search")
+	if not search_ui.is_telescope_available() then
+		vim.notify(
+			"Telescope is not installed. Please install telescope.nvim to use move functionality.",
+			vim.log.levels.ERROR
+		)
+		return
+	end
+
+	-- 開啟移動目標選擇對話框
+	search_ui.search_move_destination(item_type, item_id, item_title, {
+		layout_strategy = "horizontal",
+		layout_config = {
+			height = 0.6,
+			width = 0.8,
+		},
+	})
 end
 
 -- 自動同步函數（用於自動觸發）
