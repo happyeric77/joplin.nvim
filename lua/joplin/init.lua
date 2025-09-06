@@ -1255,6 +1255,64 @@ function M.search_notebooks(default_text)
 		},
 	})
 end
+-- 調試用：驗證資料夾展開功能
+function M.debug_expand_folder(folder_id)
+	print("=== Debug Expand Folder ===")
+	print("Target folder ID: " .. (folder_id or "nil"))
+	
+	local tree_ui = require("joplin.ui.tree")
+	local api = require("joplin.api.client")
+	
+	-- 檢查 API 連接
+	local ping_success, ping_result = api.ping()
+	if not ping_success then
+		print("❌ API connection failed: " .. ping_result)
+		return
+	end
+	print("✅ API connected: " .. ping_result)
+	
+	-- 獲取所有資料夾
+	local folders_success, folders = api.get_folders()
+	if not folders_success then
+		print("❌ Failed to get folders: " .. folders)
+		return
+	end
+	print("✅ Retrieved " .. #folders .. " folders")
+	
+	-- 檢查目標資料夾是否存在
+	local target_folder = nil
+	for _, folder in ipairs(folders) do
+		if folder.id == folder_id then
+			target_folder = folder
+			break
+		end
+	end
+	
+	if not target_folder then
+		print("❌ Target folder not found!")
+		print("Available folders:")
+		for i, folder in ipairs(folders) do
+			print("  " .. i .. ". ID: " .. folder.id .. ", Title: " .. (folder.title or "Untitled"))
+		end
+		return
+	end
+	
+	print("✅ Found target folder: " .. (target_folder.title or "Untitled"))
+	print("    Parent ID: " .. (target_folder.parent_id or "none"))
+	
+	-- 檢查樹狀檢視狀態
+	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
+	if tree_winid then
+		print("✅ Found active tree window: " .. tree_winid)
+		print("    Buffer: " .. tree_bufnr)
+	else
+		print("⚠️  No active tree window found")
+	end
+	
+	print("=== Attempting expand ===")
+	M.expand_to_folder(folder_id)
+end
+
 -- 展開到指定 folder 並顯示其筆記
 function M.expand_to_folder(folder_id)
 	if not folder_id then
@@ -1272,9 +1330,17 @@ function M.expand_to_folder(folder_id)
 	if tree_winid then
 		-- 如果已有樹狀檢視視窗，直接在其中展開
 		print("✅ 使用現有的樹狀檢視")
-		vim.defer_fn(function()
-			tree_ui.expand_to_folder(folder_id)
-		end, 50) -- 短延遲確保視窗處於正確狀態
+		-- 立即嘗試展開，如果失敗則稍後重試
+		local success = tree_ui.expand_to_folder(folder_id)
+		if not success then
+			print("⏳ 第一次展開失敗，正在重試...")
+			vim.defer_fn(function()
+				local retry_success = tree_ui.expand_to_folder(folder_id)
+				if not retry_success then
+					print("❌ 展開失敗，可能該資料夾不存在")
+				end
+			end, 100)
+		end
 	else
 		-- 如果沒有樹狀檢視視窗，創建新的
 		print("📂 創建新的樹狀檢視")
@@ -1282,8 +1348,14 @@ function M.expand_to_folder(folder_id)
 		
 		-- 等待 tree 創建完成後再展開
 		vim.defer_fn(function()
-			tree_ui.expand_to_folder(folder_id)
-		end, 100) -- 100ms 延遲確保 tree 已建立
+			local success = tree_ui.expand_to_folder(folder_id)
+			if not success then
+				print("⏳ 樹狀檢視創建後展開失敗，正在重試...")
+				vim.defer_fn(function()
+					tree_ui.expand_to_folder(folder_id)
+				end, 200) -- 更長的延遲給新創建的樹狀檢視
+			end
+		end, 150) -- 稍微增加延遲確保樹狀檢視完全創建
 	end
 end
 
