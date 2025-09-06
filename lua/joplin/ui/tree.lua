@@ -207,6 +207,23 @@ function M.find_active_tree_buffer()
 	return nil
 end
 
+-- 尋找顯示樹狀檢視的活躍視窗
+function M.find_active_tree_window()
+	for bufnr, _ in pairs(buffer_tree_states) do
+		if vim.api.nvim_buf_is_valid(bufnr) then
+			-- 檢查是否有視窗正在顯示這個 buffer
+			local tree_wins = vim.api.nvim_list_wins()
+			for _, winid in ipairs(tree_wins) do
+				local win_bufnr = vim.api.nvim_win_get_buf(winid)
+				if win_bufnr == bufnr then
+					return winid, bufnr
+				end
+			end
+		end
+	end
+	return nil, nil
+end
+
 -- 在樹狀視窗中尋找並高亮指定筆記（不切換 focus）
 function M.highlight_note_in_tree(note_id)
 	local tree_bufnr = M.find_active_tree_buffer()
