@@ -112,6 +112,30 @@ require("joplin").setup({
 
 ## Troubleshooting
 
+### Health Check Diagnostics
+
+The easiest way to diagnose issues is to run the comprehensive health check:
+
+```vim
+:checkhealth joplin
+```
+
+This will check:
+- ✅ System dependencies (curl, network tools)
+- ✅ Configuration validation (token, host, port)
+- ✅ Joplin connection tests (TCP, Web Clipper, API)
+- ✅ Optional dependencies (telescope.nvim)
+
+The health check provides detailed error messages and step-by-step fix instructions for any issues found.
+
+### Quick Connection Test
+
+For a quick connection test, you can use:
+
+```vim
+:JoplinPing
+```
+
 ### Startup Validation
 
 `joplin.nvim` automatically validates your setup when the plugin loads. If you see warnings, here's how to fix them:
