@@ -1,0 +1,13 @@
+joplin-commands	joplin.nvim.txt	/*joplin-commands*
+joplin-configuration	joplin.nvim.txt	/*joplin-configuration*
+joplin-features	joplin.nvim.txt	/*joplin-features*
+joplin-health	joplin.nvim.txt	/*joplin-health*
+joplin-installation	joplin.nvim.txt	/*joplin-installation*
+joplin-requirements	joplin.nvim.txt	/*joplin-requirements*
+joplin-tree-keymaps	joplin.nvim.txt	/*joplin-tree-keymaps*
+joplin-troubleshooting	joplin.nvim.txt	/*joplin-troubleshooting*
+joplin.nvim	joplin.nvim.txt	/*joplin.nvim*
+joplin.nvim-contents	joplin.nvim.txt	/*joplin.nvim-contents*
+joplin.nvim-introduction	joplin.nvim.txt	/*joplin.nvim-introduction*
+joplin.nvim.txt	joplin.nvim.txt	/*joplin.nvim.txt*
+joplin.setup()	joplin.nvim.txt	/*joplin.setup()*

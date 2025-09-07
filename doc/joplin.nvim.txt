@@ -1,0 +1,163 @@
+*joplin.nvim.txt*       Joplin integration for Neovim            *joplin.nvim*
+
+Author: Eric Chen <happyeric77@gmail.com>
+License: MIT
+Version: 1.0.0
+
+==============================================================================
+CONTENTS                                             *joplin.nvim-contents*
+
+1. Introduction ................ |joplin.nvim-introduction|
+2. Features .................... |joplin-features|
+3. Requirements ................ |joplin-requirements|
+4. Installation ................ |joplin-installation|
+5. Configuration ............... |joplin-configuration|
+6. Commands .................... |joplin-commands|
+7. Tree Keymaps ................ |joplin-tree-keymaps|
+8. Troubleshooting ............. |joplin-troubleshooting|
+
+==============================================================================
+INTRODUCTION                                     *joplin.nvim-introduction*
+
+A Neovim plugin for seamless integration with Joplin, the open-source 
+note-taking and to-do application. This plugin allows you to manage your 
+Joplin notes and notebooks directly from Neovim.
+
+==============================================================================
+FEATURES                                                 *joplin-features*
+
+• Interactive Tree Browser: Browse notebooks and notes in a custom tree view
+• Fuzzy Finding with Telescope: Quick search using telescope.nvim
+• Full Note Management: Create, rename, move, and delete notes/notebooks
+• Seamless Editing: Open notes in Neovim buffers and save back to Joplin
+• Auto-Sync: Tree view syncs to currently opened Joplin note
+• Startup Validation: Validates token and Web Clipper availability
+• Health Check System: Comprehensive diagnostics via :checkhealth
+
+==============================================================================
+REQUIREMENTS                                         *joplin-requirements*
+
+• Neovim >= 0.8.0
+• Joplin installed and running
+• Joplin Web Clipper service enabled
+• curl command-line tool
+• telescope.nvim (for search functionality)
+• plenary.nvim (dependency for Telescope)
+• nvim-web-devicons (optional, for icons)
+
+==============================================================================
+INSTALLATION                                         *joplin-installation*
+
+Using lazy.nvim: >lua
+    {
+      "happyeric77/joplin.nvim",
+      dependencies = {
+        "nvim-telescope/telescope.nvim",
+        "nvim-lua/plenary.nvim",
+      },
+      config = function()
+        require("joplin").setup({
+          -- Your configuration here
+        })
+      end,
+    }
+<
+
+==============================================================================
+CONFIGURATION                                       *joplin-configuration*
+                                                        *joplin.setup()*
+
+Basic setup: >lua
+    require("joplin").setup()
+<
+
+Custom configuration: >lua
+    require("joplin").setup({
+      -- API Configuration (flat structure, NOT nested under 'api')
+      token_env = "JOPLIN_TOKEN",    -- Environment variable for token
+      token = nil,                   -- Or directly specify token
+      port = 41184,
+      host = "localhost",
+      
+      -- Tree view settings
+      tree = {
+        height = 12,
+        position = "botright",
+        focus_after_open = false,
+        auto_sync = true,
+      },
+      
+      -- Keymap settings
+      keymaps = {
+        enter = "replace",           -- Enter behavior: replace/vsplit
+        o = "vsplit",               -- o behavior: vsplit/replace
+        search = "<leader>js",
+        search_notebook = "<leader>jsnb",
+        toggle_tree = "<leader>jt",
+      },
+      
+      -- Startup validation settings
+      startup = {
+        validate_on_load = true,     -- Validate requirements on startup
+        show_warnings = true,        -- Show warning messages
+        async_validation = true,     -- Async validation
+        validation_delay = 100,      -- Delay before validation starts
+      },
+    })
+<
+
+==============================================================================
+COMMANDS                                                 *joplin-commands*
+
+:JoplinTree                 Open the interactive tree browser
+:JoplinFind                 Search for notes using Telescope
+:JoplinSearch               Same as :JoplinFind
+:JoplinFindNotebook         Search for notebooks using Telescope
+:JoplinBrowse               Open a simple text-based list browser
+:JoplinPing                 Test connection to Joplin Web Clipper service
+:JoplinHealth               Run health check diagnostics
+:JoplinHelp                 Show help message with commands and keymaps
+
+==============================================================================
+TREE KEYMAPS                                         *joplin-tree-keymaps*
+
+<CR>        Open note (behavior defined by keymaps.enter) or expand notebook
+o           Open note (behavior defined by keymaps.o)
+a           Create new item (ending with `/` creates folder)
+A           Create new folder (shortcut)
+d           Delete note or folder (with confirmation)
+r           Rename note or folder
+m           Move note or folder (uses Telescope for destination)
+R           Refresh tree structure
+q           Close tree browser
+
+==============================================================================
+TROUBLESHOOTING                                   *joplin-troubleshooting*
+                                                          *joplin-health*
+
+Run comprehensive health check:
+>
+    :checkhealth joplin
+<
+
+This checks:
+• System dependencies (curl, network tools)
+• Configuration validation (token, host, port)
+• Joplin connection tests (TCP, Web Clipper, API)
+• Optional dependencies (telescope.nvim)
+
+Quick connection test:
+>
+    :JoplinPing
+<
+
+Common issues:
+
+Token Missing: Set JOPLIN_TOKEN environment variable or configure token
+directly in setup().
+
+Web Clipper Unavailable: Ensure Joplin is running and Web Clipper service
+is enabled in Tools > Options > Web Clipper.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

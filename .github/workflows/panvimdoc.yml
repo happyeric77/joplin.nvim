@@ -1,0 +1,39 @@
+name: Generate Documentation
+
+on:
+  push:
+    branches: [main, master]
+    paths: [README.md]
+  pull_request:
+    branches: [main, master]
+    paths: [README.md]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    name: Generate vimdoc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate documentation
+        uses: kdheepak/panvimdoc@v4.0.1
+        with:
+          vimdoc: joplin.nvim
+          version: "Neovim >= 0.8.0"
+          demojify: true
+          treesitter: true
+
+      - name: Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          commit_message: "auto-update documentation"
+          file_pattern: doc/*.txt
+
