@@ -11,17 +11,17 @@ local function build_url(path, params)
 	params.token = config.get_token()
 	local query = {}
 	for k, v in pairs(params) do
-	-- URL encode parameter values, but don't escape commas (fields parameter needs commas)
-	local encoded_value = tostring(v):gsub("([^%w%-%.%_%~])", function(c)
-		return string.format("%%%02X", string.byte(c))
-	end)
-	table.insert(query, string.format("%s=%s", k, encoded_value))
-end
-if #query > 0 then
-	return base .. "?" .. table.concat(query, "&")
-else
-	return base
-end
+		-- URL encode parameter values, but don't escape commas (fields parameter needs commas)
+		local encoded_value = tostring(v):gsub("([^%w%-%.%_%~])", function(c)
+			return string.format("%%%02X", string.byte(c))
+		end)
+		table.insert(query, string.format("%s=%s", k, encoded_value))
+	end
+	if #query > 0 then
+		return base .. "?" .. table.concat(query, "&")
+	else
+		return base
+	end
 end
 
 local function sleep(ms)
@@ -37,8 +37,8 @@ local function execute_delete_request(cmd, retry_count)
 		local result = vim.fn.system(cmd)
 
 		if vim.v.shell_error == 0 then
-		-- DELETE request successful, treat as success even if response is empty
-		return true, result or ""
+			-- DELETE request successful, treat as success even if response is empty
+			return true, result or ""
 		else
 			last_error = string.format(
 				"HTTP DELETE request failed (attempt %d/%d): %s",
@@ -90,6 +90,32 @@ local function execute_request(cmd, retry_count)
 	return false, last_error
 end
 
+-- Helper function to create user-friendly error messages
+local function create_friendly_error(raw_error, context)
+	local config = require("joplin.config")
+
+	-- Check for common connection issues
+	if raw_error:match("Connection refused") or raw_error:match("Failed to connect") then
+		return string.format(
+			"Cannot connect to Joplin Web Clipper at %s. Please ensure Joplin is running with Web Clipper enabled.",
+			config.get_base_url()
+		)
+	end
+
+	-- Check for token issues
+	if raw_error:match("Invalid.*token") then
+		return "Invalid Joplin token. Please check your JOPLIN_TOKEN environment variable or configuration."
+	end
+
+	-- Check for timeout issues
+	if raw_error:match("timeout") or raw_error:match("Operation timed out") then
+		return "Connection timeout. Joplin Web Clipper may be slow to respond."
+	end
+
+	-- Default to more descriptive error
+	return string.format("%s failed: %s", context or "Joplin API request", raw_error)
+end
+
 -- Basic GET request
 function M.get(path, params)
 	local url = build_url(path, params)
@@ -97,13 +123,20 @@ function M.get(path, params)
 
 	local success, result = execute_request(cmd)
 	if not success then
-		error("Joplin API GET failed: " .. result)
+		local friendly_error = create_friendly_error(result, "GET request")
+		error(friendly_error)
 	end
 
 	-- Try to parse JSON
 	local ok, decoded = pcall(vim.fn.json_decode, result)
 	if not ok then
-		error("Invalid JSON response: " .. result)
+		-- Check if it's a Joplin error response
+		if result:match('"error"') then
+			local friendly_error = create_friendly_error(result, "API call")
+			error(friendly_error)
+		else
+			error("Invalid JSON response from Joplin API: " .. (result or "empty"))
+		end
 	end
 
 	return decoded
@@ -121,13 +154,20 @@ function M.post(path, data, params)
 
 	local success, result = execute_request(cmd)
 	if not success then
-		error("Joplin API POST failed: " .. result)
+		local friendly_error = create_friendly_error(result, "POST request")
+		error(friendly_error)
 	end
 
-	-- Try to parse JSON
+	-- Try to parse JSON response
 	local ok, decoded = pcall(vim.fn.json_decode, result)
 	if not ok then
-		error("Invalid JSON response: " .. result)
+		-- Check if it's a Joplin error response
+		if result:match('"error"') then
+			local friendly_error = create_friendly_error(result, "API call")
+			error(friendly_error)
+		else
+			error("Invalid JSON response from Joplin API: " .. (result or "empty"))
+		end
 	end
 
 	return decoded
@@ -160,9 +200,9 @@ end
 -- Test /ping
 function M.ping()
 	local url = build_url(endpoints.PING)
-local cmd = string.format('curl -s -m 5 "%s"', url) -- 5 second timeout
+	local cmd = string.format('curl -s -m 5 "%s"', url) -- 5 second timeout
 
-local success, result = execute_request(cmd, 1) -- ping only tries once
+	local success, result = execute_request(cmd, 1) -- ping only tries once
 	if not success then
 		return false, result
 	end
@@ -189,7 +229,15 @@ function M.get_folders()
 		end)
 
 		if not ok then
-			return false, "Failed to fetch folders: " .. result
+			-- Return user-friendly error message
+			local error_msg = result or "Unknown error"
+			if error_msg:match("Cannot connect to Joplin") then
+				return false, error_msg
+			elseif error_msg:match("Invalid.*token") then
+				return false, "Invalid Joplin token. Please check your JOPLIN_TOKEN environment variable."
+			else
+				return false, "Failed to fetch notebooks: " .. error_msg
+			end
 		end
 
 		if result and result.items then

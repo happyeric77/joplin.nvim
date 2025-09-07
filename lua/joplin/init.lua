@@ -2,11 +2,103 @@ local config = require("joplin.config")
 local api = require("joplin.api.client")
 local M = {}
 
+-- Validate startup requirements (token and web clipper)
+function M.validate_startup_requirements()
+	local config = require("joplin.config")
+
+	-- Skip validation if disabled
+	if not config.options.startup.validate_on_load then
+		return
+	end
+
+	local warnings = {}
+
+	-- Check token immediately (synchronous)
+	local token = config.get_token()
+	if not token or token == "" then
+		table.insert(warnings, {
+			type = "token_missing",
+			title = "Joplin Token Missing",
+			message = "⚠️  Joplin token not found. Please set JOPLIN_TOKEN environment variable or configure token in setup().",
+			help = "Run :JoplinHelp for setup instructions",
+		})
+	end
+
+	-- Check web clipper asynchronously if enabled
+	if config.options.startup.async_validation then
+		vim.defer_fn(function()
+			local ping_ok, ping_result = api.ping()
+			if not ping_ok then
+				table.insert(warnings, {
+					type = "web_clipper_unavailable",
+					title = "Joplin Web Clipper Unavailable",
+					message = string.format(
+						"⚠️  Cannot connect to Joplin Web Clipper at %s. Please ensure Joplin is running with Web Clipper enabled.",
+						config.get_base_url()
+					),
+					help = "Run :JoplinHelp for setup instructions",
+				})
+			end
+
+			-- Display all warnings
+			M.display_startup_warnings(warnings)
+		end, config.options.startup.validation_delay)
+	else
+		-- Synchronous validation - may block startup briefly
+		local ping_ok, ping_result = api.ping()
+		if not ping_ok then
+			table.insert(warnings, {
+				type = "web_clipper_unavailable",
+				title = "Joplin Web Clipper Unavailable",
+				message = string.format(
+					"⚠️  Cannot connect to Joplin Web Clipper at %s. Please ensure Joplin is running with Web Clipper enabled.",
+					config.get_base_url()
+				),
+				help = "Run :JoplinHelp for setup instructions",
+			})
+		end
+
+		-- Display warnings immediately
+		M.display_startup_warnings(warnings)
+	end
+end
+
+-- Display startup warnings to user
+function M.display_startup_warnings(warnings)
+	local config = require("joplin.config")
+
+	-- Skip display if disabled
+	if not config.options.startup.show_warnings then
+		return
+	end
+
+	if #warnings == 0 then
+		return
+	end
+
+	-- Display warnings using vim.notify for better UX
+	for _, warning in ipairs(warnings) do
+		vim.notify(warning.message, vim.log.levels.WARN, {
+			title = "Joplin.nvim: " .. warning.title,
+		})
+	end
+
+	-- Provide help information
+	if #warnings > 0 then
+		vim.notify("💡 Run :JoplinHelp for detailed setup instructions", vim.log.levels.INFO, {
+			title = "Joplin.nvim",
+		})
+	end
+end
+
 function M.setup(opts)
 	opts = opts or {}
 
 	-- Setup configuration
 	config.setup(opts)
+
+	-- Validate startup requirements (token and web clipper)
+	M.validate_startup_requirements()
 
 	-- Register basic commands
 	vim.api.nvim_create_user_command("JoplinPing", function()
@@ -562,6 +654,17 @@ function M.show_help()
 	print("📖 Joplin.nvim User Guide")
 	print("=======================")
 	print("")
+	print("🔧 Setup Requirements:")
+	print("  1. Joplin Desktop Application must be running")
+	print("  2. Web Clipper Service must be enabled in Joplin:")
+	print("     • Go to Tools > Options > Web Clipper")
+	print("     • Enable 'Enable Web Clipper Service'")
+	print("     • Note the Authorization token")
+	print("  3. Set token in environment variable:")
+	print("     export JOPLIN_TOKEN='your_token_here'")
+	print("  4. Or configure directly in Neovim:")
+	print("     require('joplin').setup({ token = 'your_token_here' })")
+	print("")
 	print("🎯 Main Commands:")
 	print("  :JoplinTree         - Open interactive tree browser")
 	print("  :JoplinFind         - Open Telescope note search")
@@ -601,6 +704,9 @@ function M.show_help()
 	print("  q        - Close tree browser")
 	print("")
 	print("⚙️  Configuration Options:")
+	print("  token                   - Joplin API token (alternative to environment variable)")
+	print("  port                    - Web Clipper port (default: 41184)")
+	print("  host                    - Web Clipper host (default: localhost)")
 	print("  tree.height             - Tree view height (default: 12)")
 	print("  tree.position           - Tree view position (default: 'botright')")
 	print("  keymaps.enter           - Enter key behavior ('replace' or 'vsplit')")
@@ -608,6 +714,20 @@ function M.show_help()
 	print("  keymaps.search          - Note search shortcut key (default: '<leader>js')")
 	print("  keymaps.search_notebook - Notebook search shortcut key (default: '<leader>jsnb')")
 	print("  keymaps.toggle_tree     - Tree view toggle shortcut key (default: '<leader>jt')")
+	print("  startup.validate_on_load - Validate requirements on plugin load (default: true)")
+	print("  startup.show_warnings   - Show startup warning messages (default: true)")
+	print("")
+	print("🚨 Troubleshooting:")
+	print("  • 'Token Missing' Warning:")
+	print("    - Set JOPLIN_TOKEN environment variable")
+	print("    - Or use: require('joplin').setup({token = 'your_token'})")
+	print("  • 'Web Clipper Unavailable' Warning:")
+	print("    - Ensure Joplin application is running")
+	print("    - Enable Web Clipper in Tools > Options > Web Clipper")
+	print("    - Check if port 41184 is available")
+	print("  • 'Invalid Token' Error:")
+	print("    - Copy the correct token from Joplin Web Clipper settings")
+	print("    - Token should be a long hexadecimal string")
 	print("")
 	print("⚠️  Important Reminders:")
 	print("  • Ensure Joplin Web Clipper service is running")

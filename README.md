@@ -11,6 +11,7 @@ A Neovim plugin for seamless integration with [Joplin](https://joplinapp.org/), 
 - **Full Note Management**: Create, rename, move, and delete notes and notebooks directly from the tree view.
 - **Seamless Editing**: Open notes in Neovim buffers and save them back to Joplin automatically.
 - **Auto-Sync**: The tree view can automatically sync to the currently opened Joplin note.
+- **Startup Validation**: Automatically validates Joplin token and Web Clipper availability on plugin load with helpful warning messages.
 - **Joplin Connection Test**: A simple command to test the connection to the Joplin Web Clipper service.
 
 ## Requirements
@@ -63,31 +64,120 @@ use {
 
 ## Configuration
 
-You can configure `joplin.nvim` by calling the `setup()` function. Here are the default options:
-
 ```lua
+-- Basic setup (using environment variable JOPLIN_TOKEN)
+require("joplin").setup()
+
+-- Custom configuration
 require("joplin").setup({
-  token_env = "JOPLIN_TOKEN", -- Environment variable for Joplin Web Clipper token
-  token = nil, -- Directly specify the token here
-  port = 41184, -- Joplin Web Clipper port
-  host = "localhost", -- Joplin Web Clipper host
+  -- API Configuration (flat structure, NOT nested under 'api')
+  token_env = "JOPLIN_TOKEN",    -- Environment variable for token
+  token = nil,                   -- Or directly specify token (overrides env var)
+  port = 41184,
+  host = "localhost",
+  
+  -- Tree view settings
   tree = {
-    height = 12, -- Tree view height
-    position = "botright", -- Tree view position: botright, topleft, etc.
-    focus_after_open = false, -- Keep focus on tree view after opening a note
-    auto_sync = true, -- Automatically sync tree when switching to a Joplin buffer
+    height = 12,
+    position = "botright",
+    focus_after_open = false,
+    auto_sync = true,
   },
+  
+  -- Keymap settings
   keymaps = {
-    enter = "replace", -- Behavior for <CR>: "replace" or "vsplit"
-    o = "vsplit", -- Behavior for "o": "vsplit" or "replace"
-    search = "<leader>js", -- Keymap for searching notes
-    search_notebook = "<leader>jsnb", -- Keymap for searching notebooks
-    toggle_tree = "<leader>jt", -- Keymap for toggling the tree view
+    enter = "replace",           -- Enter behavior: replace/vsplit
+    o = "vsplit",               -- o behavior: vsplit/replace
+    search = "<leader>js",
+    search_notebook = "<leader>jsnb",
+    toggle_tree = "<leader>jt",
+  },
+  
+  -- Startup validation settings
+  startup = {
+    validate_on_load = true,     -- Validate requirements on startup
+    show_warnings = true,        -- Show warning messages
+    async_validation = true,     -- Async validation to avoid blocking
+    validation_delay = 100,      -- Delay before validation starts
   },
 })
 ```
 
+**Important Notes:**
+- Configuration uses **flat structure** for API settings (not nested under `api`)
+- If `token` is specified, it overrides the `token_env` environment variable
+- Environment variable `JOPLIN_TOKEN` takes priority unless `token` is explicitly set
+
 **Important**: You need to provide your Joplin Web Clipper authorization token. You can either set the `JOPLIN_TOKEN` environment variable (recommanded) or specify the token directly in the `setup()` function. You can find your token in Joplin's settings under `Web Clipper -> Advanced Options -> Authorization Token`.
+
+## Troubleshooting
+
+### Startup Validation
+
+`joplin.nvim` automatically validates your setup when the plugin loads. If you see warnings, here's how to fix them:
+
+#### ⚠️ "Joplin Token Missing" Warning
+
+This means the plugin can't find your Joplin API token. To fix this:
+
+1. **Set environment variable** (recommended):
+   ```bash
+   export JOPLIN_TOKEN="your_token_here"
+   ```
+
+2. **Or configure directly in setup**:
+   ```lua
+   require("joplin").setup({
+     token = "your_token_here"
+   })
+   ```
+
+3. **Find your token**:
+   - Open Joplin Desktop
+   - Go to `Tools > Options > Web Clipper`
+   - Enable "Enable Web Clipper Service" 
+   - Copy the "Authorization token"
+
+#### ⚠️ "Joplin Web Clipper Unavailable" Warning
+
+This means the plugin can't connect to Joplin's Web Clipper service. To fix this:
+
+1. **Ensure Joplin is running**:
+   - Start Joplin Desktop application
+   - Don't just close it to the system tray
+
+2. **Enable Web Clipper service**:
+   - In Joplin, go to `Tools > Options > Web Clipper`
+   - Check "Enable Web Clipper Service"
+   - Note the port (default: 41184)
+
+3. **Check port availability**:
+   ```bash
+   curl http://localhost:41184/ping
+   # Should return: JoplinClipperServer
+   ```
+
+4. **If using non-default port**:
+   ```lua
+   require("joplin").setup({
+     port = 41185, -- Your custom port
+   })
+   ```
+
+### Disable Validation
+
+If you want to disable startup validation:
+
+```lua
+require("joplin").setup({
+  startup = {
+    validate_on_load = false, -- Disable validation
+    show_warnings = false,    -- Disable warning messages
+  }
+})
+```
+
+For more detailed help, run `:JoplinHelp` in Neovim.
 
 ## Usage
 
