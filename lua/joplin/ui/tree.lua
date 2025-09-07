@@ -506,5 +506,3 @@ function M.expand_to_folder(target_folder_id, silent)
 end
 
 return M
-return M
-return M
