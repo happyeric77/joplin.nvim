@@ -1,54 +1,61 @@
-*joplin.nvim.txt*       Joplin integration for Neovim            *joplin.nvim*
-
-Author: Eric Chen <happyeric77@gmail.com>
-License: MIT
-Version: 1.0.0
+*joplin.nvim.txt*      For Neovim >= 0.8.0      Last change: 2025 September 07
 
 ==============================================================================
-CONTENTS                                             *joplin.nvim-contents*
+Table of Contents                              *joplin.nvim-table-of-contents*
 
-1. Introduction ................ |joplin.nvim-introduction|
-2. Features .................... |joplin-features|
-3. Requirements ................ |joplin-requirements|
-4. Installation ................ |joplin-installation|
-5. Configuration ............... |joplin-configuration|
-6. Commands .................... |joplin-commands|
-7. Tree Keymaps ................ |joplin-tree-keymaps|
-8. Troubleshooting ............. |joplin-troubleshooting|
-
-==============================================================================
-INTRODUCTION                                     *joplin.nvim-introduction*
-
-A Neovim plugin for seamless integration with Joplin, the open-source 
-note-taking and to-do application. This plugin allows you to manage your 
-Joplin notes and notebooks directly from Neovim.
+1. joplin.nvim joplin.nvim               |joplin.nvim-joplin.nvim-joplin.nvim|
+  - Features joplin-features|joplin.nvim-joplin.nvim-joplin.nvim-features-joplin-features|
+  - Requirements joplin-requirements|joplin.nvim-joplin.nvim-joplin.nvim-requirements-joplin-requirements|
+  - Installation joplin-installation|joplin.nvim-joplin.nvim-joplin.nvim-installation-joplin-installation|
+  - Configuration joplin-configuration joplin.setup()|joplin.nvim-joplin.nvim-joplin.nvim-configuration-joplin-configuration-joplin.setup()|
+  - Troubleshooting joplin-troubleshooting|joplin.nvim-joplin.nvim-joplin.nvim-troubleshooting-joplin-troubleshooting|
+  - Usage joplin-usage|joplin.nvim-joplin.nvim-joplin.nvim-usage-joplin-usage|
+  - Development joplin-development|joplin.nvim-joplin.nvim-joplin.nvim-development-joplin-development|
+  - License                      |joplin.nvim-joplin.nvim-joplin.nvim-license|
+2. Links                                                   |joplin.nvim-links|
 
 ==============================================================================
-FEATURES                                                 *joplin-features*
+1. joplin.nvim joplin.nvim               *joplin.nvim-joplin.nvim-joplin.nvim*
 
-• Interactive Tree Browser: Browse notebooks and notes in a custom tree view
-• Fuzzy Finding with Telescope: Quick search using telescope.nvim
-• Full Note Management: Create, rename, move, and delete notes/notebooks
-• Seamless Editing: Open notes in Neovim buffers and save back to Joplin
-• Auto-Sync: Tree view syncs to currently opened Joplin note
-• Startup Validation: Validates token and Web Clipper availability
-• Health Check System: Comprehensive diagnostics via :checkhealth
+A Neovim plugin for seamless integration with Joplin <https://joplinapp.org/>,
+the open-source note-taking and to-do application. This plugin allows you to
+manage your Joplin notes and notebooks directly from Neovim, providing a
+powerful and efficient workflow for developers and writers who love both
+applications.
 
-==============================================================================
-REQUIREMENTS                                         *joplin-requirements*
 
-• Neovim >= 0.8.0
-• Joplin installed and running
-• Joplin Web Clipper service enabled
-• curl command-line tool
-• telescope.nvim (for search functionality)
-• plenary.nvim (dependency for Telescope)
-• nvim-web-devicons (optional, for icons)
 
-==============================================================================
-INSTALLATION                                         *joplin-installation*
 
-Using lazy.nvim: >lua
+FEATURES JOPLIN-FEATURES*joplin.nvim-joplin.nvim-joplin.nvim-features-joplin-features*
+
+- **Interactive Tree Browser**Browse your Joplin notebooks and notes in a custom tree view.
+- **Fuzzy Finding with Telescope**Quickly search for notes and notebooks using `telescope.nvim`.
+- **Full Note Management**Create, rename, move, and delete notes and notebooks directly from the tree view.
+- **Seamless Editing**Open notes in Neovim buffers and save them back to Joplin automatically.
+- **Auto-Sync**The tree view can automatically sync to the currently opened Joplin note.
+- **Startup Validation**Automatically validates Joplin token and Web Clipper availability on plugin load with helpful warning messages.
+- **Joplin Connection Test**A simple command to test the connection to the Joplin Web Clipper service.
+
+
+REQUIREMENTS JOPLIN-REQUIREMENTS*joplin.nvim-joplin.nvim-joplin.nvim-requirements-joplin-requirements*
+
+- Neovim >= 0.8.0
+- Joplin <https://joplinapp.org/help/install/> installed and running.
+- The Joplin Web Clipper <https://joplinapp.org/clipper/> service must be enabled and running.
+- `curl` command-line tool.
+- telescope.nvim <https://github.com/nvim-telescope/telescope.nvim> (required for search functionality).
+- plenary.nvim <https://github.com/nvim-lua/plenary.nvim> (dependency for Telescope).
+- (Optional) nvim-web-devicons <https://github.com/kyazdani42/nvim-web-devicons> for icons in the tree view.
+
+
+INSTALLATION JOPLIN-INSTALLATION*joplin.nvim-joplin.nvim-joplin.nvim-installation-joplin-installation*
+
+You can install `joplin.nvim` using your favorite plugin manager.
+
+
+LAZY.NVIM ~
+
+>lua
     {
       "happyeric77/joplin.nvim",
       dependencies = {
@@ -57,25 +64,42 @@ Using lazy.nvim: >lua
       },
       config = function()
         require("joplin").setup({
-          -- Your configuration here
+          -- Your configuration options here
+        })
+      end,
+    },
+<
+
+
+PACKER.NVIM ~
+
+>lua
+    use {
+      "happyeric77/joplin.nvim",
+      requires = {
+        "nvim-telescope/telescope.nvim",
+        "nvim-lua/plenary.nvim",
+      },
+      config = function()
+        require("joplin").setup({
+          -- Your configuration options here
         })
       end,
     }
 <
 
-==============================================================================
-CONFIGURATION                                       *joplin-configuration*
-                                                        *joplin.setup()*
 
-Basic setup: >lua
+CONFIGURATION JOPLIN-CONFIGURATION JOPLIN.SETUP()*joplin.nvim-joplin.nvim-joplin.nvim-configuration-joplin-configuration-joplin.setup()*
+
+>lua
+    -- Basic setup (using environment variable JOPLIN_TOKEN)
     require("joplin").setup()
-<
-
-Custom configuration: >lua
+    
+    -- Custom configuration
     require("joplin").setup({
       -- API Configuration (flat structure, NOT nested under 'api')
       token_env = "JOPLIN_TOKEN",    -- Environment variable for token
-      token = nil,                   -- Or directly specify token
+      token = nil,                   -- Or directly specify token (overrides env var)
       port = 41184,
       host = "localhost",
       
@@ -100,64 +124,214 @@ Custom configuration: >lua
       startup = {
         validate_on_load = true,     -- Validate requirements on startup
         show_warnings = true,        -- Show warning messages
-        async_validation = true,     -- Async validation
+        async_validation = true,     -- Async validation to avoid blocking
         validation_delay = 100,      -- Delay before validation starts
       },
     })
 <
 
-==============================================================================
-COMMANDS                                                 *joplin-commands*
+**Important Notes:** - Configuration uses **flat structure** for API settings
+(not nested under `api`) - If `token` is specified, it overrides the
+`token_env` environment variable - Environment variable `JOPLIN_TOKEN` takes
+priority unless `token` is explicitly set
 
-:JoplinTree                 Open the interactive tree browser
-:JoplinFind                 Search for notes using Telescope
-:JoplinSearch               Same as :JoplinFind
-:JoplinFindNotebook         Search for notebooks using Telescope
-:JoplinBrowse               Open a simple text-based list browser
-:JoplinPing                 Test connection to Joplin Web Clipper service
-:JoplinHealth               Run health check diagnostics
-:JoplinHelp                 Show help message with commands and keymaps
+**Important**You need to provide your Joplin Web Clipper authorization token.
+You can either set the `JOPLIN_TOKEN` environment variable (recommanded) or
+specify the token directly in the `setup()` function. You can find your token
+in Joplin’s settings under `Web Clipper -> Advanced Options -> Authorization
+Token`.
 
-==============================================================================
-TREE KEYMAPS                                         *joplin-tree-keymaps*
 
-<CR>        Open note (behavior defined by keymaps.enter) or expand notebook
-o           Open note (behavior defined by keymaps.o)
-a           Create new item (ending with `/` creates folder)
-A           Create new folder (shortcut)
-d           Delete note or folder (with confirmation)
-r           Rename note or folder
-m           Move note or folder (uses Telescope for destination)
-R           Refresh tree structure
-q           Close tree browser
+TROUBLESHOOTING JOPLIN-TROUBLESHOOTING*joplin.nvim-joplin.nvim-joplin.nvim-troubleshooting-joplin-troubleshooting*
 
-==============================================================================
-TROUBLESHOOTING                                   *joplin-troubleshooting*
-                                                          *joplin-health*
 
-Run comprehensive health check:
->
+HEALTH CHECK DIAGNOSTICS JOPLIN-HEALTH ~
+
+The easiest way to diagnose issues is to run the comprehensive health check:
+
+>vim
     :checkhealth joplin
 <
 
-This checks:
-• System dependencies (curl, network tools)
-• Configuration validation (token, host, port)
-• Joplin connection tests (TCP, Web Clipper, API)
-• Optional dependencies (telescope.nvim)
+This will check: - System dependencies (curl, network tools) - Configuration
+validation (token, host, port) - Joplin connection tests (TCP, Web Clipper,
+API) - Optional dependencies (telescope.nvim)
 
-Quick connection test:
->
+The health check provides detailed error messages and step-by-step fix
+instructions for any issues found.
+
+
+QUICK CONNECTION TEST ~
+
+For a quick connection test, you can use:
+
+>vim
     :JoplinPing
 <
 
-Common issues:
 
-Token Missing: Set JOPLIN_TOKEN environment variable or configure token
-directly in setup().
+STARTUP VALIDATION ~
 
-Web Clipper Unavailable: Ensure Joplin is running and Web Clipper service
-is enabled in Tools > Options > Web Clipper.
+`joplin.nvim` automatically validates your setup when the plugin loads. If you
+see warnings, here’s how to fix them:
+
+
+“JOPLIN TOKEN MISSING” WARNING
+
+This means the plugin can’t find your Joplin API token. To fix this:
+
+1. **Set environment variable** (recommended):
+
+>bash
+    export JOPLIN_TOKEN="your_token_here"
+<
+
+
+2. **Or configure directly in setup**
+
+>lua
+    require("joplin").setup({
+      token = "your_token_here"
+    })
+<
+
+
+3. **Findyour token**
+
+- OpenJoplin Desktop
+- Go to `Tools > Options > Web Clipper`
+- Enable "Enable Web Clipper Service"
+- Copy the "Authorization token"
+
+
+
+
+“JOPLIN WEB CLIPPER UNAVAILABLE” WARNING
+
+This means the plugin can’t connect to Joplin’s Web Clipper service. To fix
+this:
+
+1. **Ensure Joplin is running**
+
+- StartJoplin Desktop application
+- Don’t just close it to the system tray
+
+
+2. **Enable Web Clipper service**
+
+- InJoplin, go to `Tools > Options > Web Clipper`
+- Check "Enable Web Clipper Service"
+- Note the port (default: 41184)
+
+
+3. **Check port availability**
+
+>bash
+    curl http://localhost:41184/ping
+    # Should return: JoplinClipperServer
+<
+
+
+4. **Ifusing non-default port**
+
+>lua
+    require("joplin").setup({
+      port = 41185, -- Your custom port
+    })
+<
+
+
+
+
+DISABLEVALIDATION ~
+
+If you want to disable startup validation:
+
+>lua
+    require("joplin").setup({
+      startup = {
+        validate_on_load = false, -- Disable validation
+        show_warnings = false,    -- Disable warning messages
+      }
+    })
+<
+
+For more detailed help, run `:JoplinHelp` in Neovim.
+
+
+USAGE JOPLIN-USAGE    *joplin.nvim-joplin.nvim-joplin.nvim-usage-joplin-usage*
+
+
+COMMANDS JOPLIN-COMMANDS ~
+
+`joplin.nvim` provides the following commands:
+
+- `:JoplinTree`Open the interactive tree browser.
+- `:JoplinFind`Search for notes using Telescope.
+- `:JoplinSearch`Same as `:JoplinFind`.
+- `:JoplinFindNotebook`Search for notebooks using Telescope.
+- `:JoplinBrowse`Open a simple text-based list browser.
+- `:JoplinPing`Test the connection to the Joplin Web Clipper service.
+- `:JoplinHelp`Show the help message with all commands and keymaps.
+
+
+TREE BROWSER KEYMAPS JOPLIN-TREE-KEYMAPS ~
+
+The following keymaps are available in the tree browser:
+
+  -------------------------------------------------------------------------
+  Key    Action
+  ------ ------------------------------------------------------------------
+  <CR>   Open a note (behavior defined by keymaps.enter) or expand/collapse
+         a notebook.
+
+  o      Open a note (behavior defined by keymaps.o).
+
+  a      Create a new item (ending with / creates a folder, otherwise a
+         note).
+
+  A      Create a new folder (shortcut).
+
+  d      Delete a note or folder (with confirmation).
+
+  r      Rename a note or folder.
+
+  m      Move a note or folder (uses Telescope to select the destination).
+
+  R      Refresh the tree structure.
+
+  q      Close the tree browser.
+  -------------------------------------------------------------------------
+
+TELESCOPE SEARCH JOPLIN-TELESCOPE ~
+
+When searching with `:JoplinFind` or `:JoplinFindNotebook`, you can use the
+following keymaps in the Telescope window:
+
+  Key     Action
+  ------- ---------------------------------------------
+  <CR>    Open the selected note.
+  <C-v>   Open the selected note in a vertical split.
+
+DEVELOPMENT JOPLIN-DEVELOPMENT*joplin.nvim-joplin.nvim-joplin.nvim-development-joplin-development*
+
+To run the tests for `joplin.nvim`, you can use the following command:
+
+>bash
+    nvim --headless -c "PlenaryBustedDirectory tests/" -c "qa"
+<
+
+
+LICENSE                          *joplin.nvim-joplin.nvim-joplin.nvim-license*
+
+This project is licensed under the MIT License. See the LICENSE <LICENSE> file
+for details.
 
 ==============================================================================
-vim:tw=78:ts=8:ft=help:norl:
+2. Links                                                   *joplin.nvim-links*
+
+1. *joplin.nvim demo*: https.user-images.githubusercontent.com/1234567/89012345-abcdef.gif
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:
