@@ -1,5 +1,9 @@
 # joplin.nvim *joplin.nvim*
 
+![CI](https://github.com/happyeric77/joplin.nvim/workflows/CI/badge.svg)
+![Documentation](https://github.com/happyeric77/joplin.nvim/workflows/Generate%20Documentation/badge.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A Neovim plugin for seamless integration with [Joplin](https://joplinapp.org/), the open-source note-taking and to-do application. This plugin allows you to manage your Joplin notes and notebooks directly from Neovim, providing a powerful and efficient workflow for developers and writers who love both applications.
 
 ![joplin.nvim demo](https.user-images.githubusercontent.com/1234567/89012345-abcdef.gif) <!-- Replace with your own demo GIF -->
@@ -16,7 +20,7 @@ A Neovim plugin for seamless integration with [Joplin](https://joplinapp.org/), 
 
 ## Requirements *joplin-requirements*
 
-- Neovim >= 0.8.0
+- Neovim >= 0.8.3
 - [Joplin](https://joplinapp.org/help/install/) installed and running.
 - The [Joplin Web Clipper](https://joplinapp.org/clipper/) service must be enabled and running.
 - `curl` command-line tool.

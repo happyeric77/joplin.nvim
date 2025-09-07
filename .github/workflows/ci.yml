@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        neovim_version: ['v0.8.3', 'v0.9.5', 'v0.10.2', 'v0.11.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhymond/setup-neovim@v1
+        with:
+          neovim-version: ${{ matrix.neovim_version }}
+
+      - name: Install dependencies
+        run: |
+          # Install plenary.nvim for testing
+          mkdir -p ~/.local/share/nvim/site/pack/vendor/start/
+          git clone --depth 1 https://github.com/nvim-lua/plenary.nvim \
+            ~/.local/share/nvim/site/pack/vendor/start/plenary.nvim
+          
+          # Install telescope.nvim (required dependency)
+          git clone --depth 1 https://github.com/nvim-telescope/telescope.nvim \
+            ~/.local/share/nvim/site/pack/vendor/start/telescope.nvim
+
+      - name: Run tests
+        run: |
+          # Run tests without requiring actual Joplin connection
+          nvim --headless -c "PlenaryBustedDirectory tests/" -c "qa"
+
+      - name: Run health check
+        run: |
+          # Test that health check doesn't crash
+          nvim --headless -c "lua require('joplin.health').check()" -c "qa"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stylua
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check .
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that docs are up to date
+        uses: kdheepak/panvimdoc@v4.0.1
+        with:
+          vimdoc: joplin.nvim
+          version: "Neovim >= 0.8.3"
+          demojify: true
+          treesitter: true
+
+      - name: Verify no changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "Documentation is out of date. Please run panvimdoc to update."
+            git diff
+            exit 1
+          fi

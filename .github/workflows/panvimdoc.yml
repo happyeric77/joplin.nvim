@@ -25,7 +25,7 @@ jobs:
         uses: kdheepak/panvimdoc@v4.0.1
         with:
           vimdoc: joplin.nvim
-          version: "Neovim >= 0.8.0"
+          version: "Neovim >= 0.8.3"
           demojify: true
           treesitter: true
 
