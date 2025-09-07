@@ -79,4 +79,3 @@ describe("Joplin Config Tests", function()
     end
   end)
 end)
-
