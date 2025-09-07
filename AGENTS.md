@@ -11,7 +11,7 @@
 - **Indentation**: 2 spaces, no tabs
 - **Imports**: Use `require('module.path')` at file top, assign to `local M = {}`
 - **Functions**: Define with `function M.method_name()` for public, `local function` for private
-- **Comments**: Chinese comments allowed, use `--` for line comments
+- **Comments**: English comments preferred, use `--` for line comments
 - **Error handling**: Use `pcall()` for unsafe operations, `error()` for critical failures
 
 ## Naming Conventions

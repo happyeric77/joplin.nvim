@@ -5,10 +5,10 @@ local M = {}
 function M.setup(opts)
 	opts = opts or {}
 
-	-- 設定配置
+	-- Setup configuration
 	config.setup(opts)
 
-	-- 註冊基本命令
+	-- Register basic commands
 	vim.api.nvim_create_user_command("JoplinPing", function()
 		M.ping()
 	end, { desc = "Test Joplin connection" })
@@ -25,7 +25,7 @@ function M.setup(opts)
 		M.create_tree()
 	end, { desc = "Open Joplin tree view" })
 
-	-- 搜尋相關命令
+	-- Search related commands
 	vim.api.nvim_create_user_command("JoplinFind", function(opts)
 		M.search_notes(opts.args)
 	end, {
@@ -47,7 +47,7 @@ function M.setup(opts)
 		nargs = "?",
 	})
 
-	-- 設置快捷鍵
+	-- Setup shortcut keys
 	local search_keymap = config.options.keymaps.search
 	if search_keymap and search_keymap ~= "" then
 		vim.keymap.set("n", search_keymap, function()
@@ -79,7 +79,7 @@ function M.setup(opts)
 	end
 end
 
--- 測試 API 連接
+-- Test API connection
 function M.ping()
 	local success, result = api.ping()
 	if success then
@@ -90,7 +90,7 @@ function M.ping()
 	return success, result
 end
 
--- 測試完整連接並顯示基本資訊
+-- Test full connection and display basic information
 function M.test_connection()
 	local ping_ok, ping_result = api.ping()
 	if not ping_ok then
@@ -110,7 +110,7 @@ function M.test_connection()
 	return ping_ok
 end
 
--- 列出所有資料夾
+-- List all folders
 function M.list_folders()
 	local success, folders = api.get_folders()
 	if not success then
@@ -126,7 +126,7 @@ function M.list_folders()
 	return folders
 end
 
--- 列出筆記（可選擇資料夾）
+-- List notes (optional folder selection)
 function M.list_notes(folder_id, limit)
 	local success, notes = api.get_notes(folder_id, limit)
 
@@ -151,40 +151,40 @@ function M.list_notes(folder_id, limit)
 	return notes
 end
 
--- 取得單一筆記
+-- Get single note
 function M.get_note(note_id)
 	return api.get_note(note_id)
 end
 
--- 開啟樹狀檢視
+-- Open tree view
 function M.create_tree()
 	local tree_ui = require("joplin.ui.tree")
 	tree_ui.create_tree()
 end
 
--- 切換樹狀檢視
+-- Toggle tree view
 function M.toggle_tree()
 	local tree_ui = require("joplin.ui.tree")
 
-	-- 尋找活躍的樹狀檢視視窗
+	-- Find active tree view window
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
 
 	if tree_winid then
-		-- 如果找到活躍的樹狀檢視視窗，關閉它
+		-- If found active tree view window, close it
 		vim.api.nvim_win_close(tree_winid, false)
-		print("✅ Joplin 樹狀檢視已關閉")
+		print("✅ Joplin tree view closed")
 	else
-		-- 如果沒有活躍的樹狀檢視視窗，建立新的
+		-- If no active tree view window, create new one
 		tree_ui.create_tree()
 	end
 end
 
--- 查找適合開啟筆記的視窗
+-- Find suitable window for opening notes
 function M.find_target_window(tree_state)
 	local tree_winid = vim.api.nvim_get_current_win()
 	local all_wins = vim.api.nvim_list_wins()
 
-	-- 如果有記錄的原始視窗，優先使用
+	-- If there's recorded original window, use it first
 	if tree_state.original_win then
 		for _, winid in ipairs(all_wins) do
 			if winid == tree_state.original_win then
@@ -193,97 +193,97 @@ function M.find_target_window(tree_state)
 		end
 	end
 
-	-- 尋找第一個非樹狀檢視的正常視窗
+	-- Find first normal window that's not tree view
 	for _, winid in ipairs(all_wins) do
 		if winid ~= tree_winid then
 			local bufnr = vim.api.nvim_win_get_buf(winid)
 			local buftype = vim.api.nvim_buf_get_option(bufnr, "buftype")
-			-- 排除特殊 buffer (nofile, quickfix, etc.)
+			-- Exclude special buffers (nofile, quickfix, etc.)
 			if buftype == "" or buftype == "acwrite" then
 				return winid
 			end
 		end
 	end
 
-	-- 如果沒找到合適的視窗，返回 nil
+	-- If no suitable window found, return nil
 	return nil
 end
 
--- 在指定視窗開啟筆記
+-- Open note in specified window
 function M.open_note_in_window(note_id, target_win, split_type)
 	local config = require("joplin.config")
 	local buffer_utils = require("joplin.utils.buffer")
 
 	if target_win then
-		-- 切換到目標視窗
+		-- Switch to target window
 		vim.api.nvim_set_current_win(target_win)
 
 		if split_type == "vsplit" then
-			-- 垂直分割開啟筆記
+			-- Vertical split to open note
 			local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
 			if not success then
-				print("❌ 開啟筆記失敗: " .. result)
+				print("❌ Failed to open note: " .. result)
 			end
 		else
-			-- 直接在當前視窗開啟筆記（替換內容）
+			-- Directly open note in current window (replace content)
 			local success, result = pcall(buffer_utils.open_note, note_id, "edit")
 			if not success then
-				print("❌ 開啟筆記失敗: " .. result)
+				print("❌ Failed to open note: " .. result)
 			end
 		end
 
-		-- 根據配置決定是否將焦點返回到樹狀檢視
+		-- Decide whether to return focus to tree view based on configuration
 		if not config.options.tree.focus_after_open then
-			-- 保持在筆記視窗
+			-- Stay in note window
 			return
 		end
 	else
-		-- 沒有找到目標視窗，創建新的垂直分割
-		print("💡 沒有找到合適的視窗，創建新的分割")
+		-- No target window found, create new vertical split
+		print("💡 No suitable window found, creating new split")
 		local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
 		if not success then
-			print("❌ 開啟筆記失敗: " .. result)
+			print("❌ Failed to open note: " .. result)
 		end
 	end
 end
 
--- 重建樹狀顯示內容
+-- Rebuild tree display content
 function M.rebuild_tree_display(tree_state)
 	local tree_ui = require("joplin.ui.tree")
 	tree_ui.rebuild_tree_display(tree_state)
 end
 
--- 建立 folder 階層樹狀結構
+-- Build folder hierarchy tree structure
 function M.build_folder_tree(folders)
 	local tree = {}
 	local folder_map = {}
 
-	-- 建立 folder id 到 folder 物件的映射
+	-- Create folder id to folder object mapping
 	for _, folder in ipairs(folders) do
 		folder_map[folder.id] = folder
 		folder.children = {}
 	end
 
-	-- 建立父子關係
+	-- Build parent-child relationships
 	for _, folder in ipairs(folders) do
 		if folder.parent_id and folder.parent_id ~= "" then
-			-- 有父資料夾，加入到父資料夾的 children 中
+			-- Has parent folder, add to parent folder's children
 			local parent = folder_map[folder.parent_id]
 			if parent then
 				table.insert(parent.children, folder)
 			end
 		else
-			-- 沒有父資料夾，是根層級
+			-- No parent folder, is root level
 			table.insert(tree, folder)
 		end
 	end
 
-	-- 排序根層級 folder
+	-- Sort root level folders
 	table.sort(tree, function(a, b)
 		return (a.title or "") < (b.title or "")
 	end)
 
-	-- 遞迴排序子資料夾
+	-- Recursively sort child folders
 	local function sort_children(folder)
 		if folder.children then
 			table.sort(folder.children, function(a, b)
@@ -302,7 +302,7 @@ function M.build_folder_tree(folders)
 	return tree
 end
 
--- 遞迴顯示 folder 樹狀結構
+-- Recursively display folder tree structure
 function M.display_folder_tree(tree_state, folders, depth)
 	for _, folder in ipairs(folders) do
 		local indent = string.rep("  ", depth)
@@ -310,7 +310,7 @@ function M.display_folder_tree(tree_state, folders, depth)
 		local icon = is_expanded and "📂" or "📁"
 		local expand_icon = is_expanded and "▼" or "▶"
 
-		-- Folder 行
+		-- Folder line
 		local folder_line = string.format("%s%s %s %s", indent, expand_icon, icon, folder.title)
 		table.insert(tree_state.lines, folder_line)
 		table.insert(tree_state.line_data, {
@@ -321,18 +321,18 @@ function M.display_folder_tree(tree_state, folders, depth)
 			depth = depth,
 		})
 
-		-- 如果展開，顯示內容
+		-- If expanded, show content
 		if is_expanded then
-			-- 先顯示子資料夾
+			-- First show child folders
 			if folder.children and #folder.children > 0 then
 				M.display_folder_tree(tree_state, folder.children, depth + 1)
 			end
 
-			-- 再顯示該資料夾中的筆記
+			-- Then show notes in this folder
 			if tree_state.loading[folder.id] then
-				-- 顯示載入指示器
+				-- Show loading indicator
 				local loading_indent = string.rep("  ", depth + 1)
-				local loading_line = string.format("%s⏳ 正在載入筆記...", loading_indent)
+				local loading_line = string.format("%s⏳ Loading notes...", loading_indent)
 				table.insert(tree_state.lines, loading_line)
 				table.insert(tree_state.line_data, {
 					type = "loading",
@@ -360,16 +360,16 @@ function M.display_folder_tree(tree_state, folders, depth)
 	end
 end
 
--- 異步載入資料夾筆記
+-- Asynchronously load folder notes
 function M.load_folder_notes_async(tree_state, folder_id, cursor_line)
-	-- 設置載入狀態
+	-- Set loading state
 	tree_state.loading[folder_id] = true
 
-	-- 立即更新顯示，顯示載入指示器
+	-- Immediately update display, show loading indicator
 	M.rebuild_tree_display(tree_state)
 	vim.api.nvim_win_set_cursor(0, { cursor_line, 0 })
 
-	-- 顯示載入訊息
+	-- Show loading message
 	local folder_name = ""
 	for _, folder in ipairs(tree_state.folders) do
 		if folder.id == folder_id then
@@ -377,29 +377,29 @@ function M.load_folder_notes_async(tree_state, folder_id, cursor_line)
 			break
 		end
 	end
-	print("🔄 正在載入 " .. folder_name .. " 的筆記...")
+	print("🔄 Loading notes for " .. folder_name .. "...")
 
-	-- 使用 vim.defer_fn 來模擬異步行為
+	-- Use vim.defer_fn to simulate asynchronous behavior
 	vim.defer_fn(function()
 		local success, notes = api.get_notes(folder_id)
 		if success then
 			tree_state.folder_notes[folder_id] = notes
-			print("✅ 已載入 " .. #notes .. " 個筆記")
+			print("✅ Loaded " .. #notes .. " notes")
 		else
 			tree_state.folder_notes[folder_id] = {}
-			print("❌ 載入筆記失敗: " .. notes)
+			print("❌ Failed to load notes: " .. notes)
 		end
 
-		-- 清除載入狀態
+		-- Clear loading state
 		tree_state.loading[folder_id] = false
 
-		-- 重新渲染
+		-- Re-render
 		M.rebuild_tree_display(tree_state)
 		vim.api.nvim_win_set_cursor(0, { cursor_line, 0 })
-	end, 10) -- 10ms 延遲，讓 UI 有時間更新
+	end, 10) -- 10ms delay to let UI update
 end
 
--- 處理 Enter 按鍵
+-- Handle Enter key
 function M.handle_tree_enter(tree_state)
 	local config = require("joplin.config")
 	local line_num = vim.api.nvim_win_get_cursor(0)[1]
@@ -410,27 +410,27 @@ function M.handle_tree_enter(tree_state)
 	end
 
 	if line_data.type == "folder" then
-		-- 切換 folder 展開/收縮狀態
+		-- Toggle folder expand/collapse state
 		local is_expanding = not tree_state.expanded[line_data.id]
 		tree_state.expanded[line_data.id] = is_expanding
 
-		-- 如果是展開且尚未載入筆記，則按需載入
+		-- If expanding and notes not yet loaded, load on demand
 		if is_expanding and not tree_state.folder_notes[line_data.id] then
 			M.load_folder_notes_async(tree_state, line_data.id, line_num)
 		else
 			M.rebuild_tree_display(tree_state)
-			-- 保持游標位置
+			-- Keep cursor position
 			vim.api.nvim_win_set_cursor(0, { line_num, 0 })
 		end
 	elseif line_data.type == "note" then
-		-- Enter: 根據配置決定開啟方式（預設為替換上方視窗）
+		-- Enter: Decide opening method based on configuration (default is replace upper window)
 		local open_mode = config.options.keymaps.enter
 		local target_win = M.find_target_window(tree_state)
 		local split_type = (open_mode == "vsplit") and "vsplit" or "replace"
 
 		M.open_note_in_window(line_data.id, target_win, split_type)
 
-		-- 如果配置要求保持焦點在樹狀檢視，切換回樹狀檢視
+		-- If configuration requires keeping focus in tree view, switch back to tree view
 		if config.options.tree.focus_after_open then
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
@@ -444,7 +444,7 @@ function M.handle_tree_enter(tree_state)
 	end
 end
 
--- 處理 o 按鍵（開啟）
+-- Handle o key (open)
 function M.handle_tree_open(tree_state)
 	local config = require("joplin.config")
 	local line_num = vim.api.nvim_win_get_cursor(0)[1]
@@ -455,14 +455,14 @@ function M.handle_tree_open(tree_state)
 	end
 
 	if line_data.type == "note" then
-		-- o: 根據配置決定開啟方式（預設為垂直分割）
+		-- o: Decide opening method based on configuration (default is vertical split)
 		local open_mode = config.options.keymaps.o
 		local target_win = M.find_target_window(tree_state)
 		local split_type = (open_mode == "replace") and "replace" or "vsplit"
 
 		M.open_note_in_window(line_data.id, target_win, split_type)
 
-		-- 如果配置要求保持焦點在樹狀檢視，切換回樹狀檢視
+		-- If configuration requires keeping focus in tree view, switch back to tree view
 		if config.options.tree.focus_after_open then
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
@@ -474,31 +474,31 @@ function M.handle_tree_open(tree_state)
 			end
 		end
 	elseif line_data.type == "folder" then
-		-- 對 folder 按 o 也是展開/收縮
+		-- Pressing o on folder also expands/collapses
 		M.handle_tree_enter(tree_state)
 	end
 end
 
--- 從樹狀檢視開啟筆記
+-- Open note from tree view
 function M.open_note_from_tree(note_id)
-	print("🔍 嘗試開啟 note ID: " .. (note_id or "nil"))
+	print("🔍 Attempting to open note ID: " .. (note_id or "nil"))
 	if not note_id then
-		print("❌ Note ID 為空")
+		print("❌ Note ID is empty")
 		return
 	end
 
 	local buffer_utils = require("joplin.utils.buffer")
 	local success, result = pcall(buffer_utils.open_note, note_id, "vsplit")
 	if not success then
-		print("❌ 開啟 note 失敗: " .. result)
+		print("❌ Failed to open note: " .. result)
 	else
-		print("✅ Note 在 vsplit 中開啟成功")
+		print("✅ Note opened successfully in vsplit")
 	end
 end
 
--- 重新整理樹狀檢視
+-- Refresh tree view
 function M.refresh_tree(tree_state)
-	-- 重新獲取資料夾
+	-- Re-fetch folders
 	local folders_success, folders = api.get_folders()
 	if not folders_success then
 		print("❌ Failed to refresh folders")
@@ -507,29 +507,29 @@ function M.refresh_tree(tree_state)
 
 	tree_state.folders = folders
 
-	-- 保留已展開資料夾的筆記，清除其他資料夾的筆記
+	-- Keep notes of expanded folders, clear notes of other folders
 	local old_folder_notes = tree_state.folder_notes
 	local old_expanded = tree_state.expanded
 	tree_state.folder_notes = {}
 	tree_state.expanded = {}
 
-	-- 重新初始化展開狀態，並保留已展開資料夾的筆記
+	-- Re-initialize expanded state and keep notes of expanded folders
 	for _, folder in ipairs(folders) do
 		local was_expanded = old_expanded[folder.id] or false
 		tree_state.expanded[folder.id] = was_expanded
 
-		-- 如果資料夾之前是展開的且有筆記資料，保留這些資料
+		-- If folder was previously expanded and has note data, keep this data
 		if was_expanded and old_folder_notes[folder.id] then
 			tree_state.folder_notes[folder.id] = old_folder_notes[folder.id]
 		end
-		-- 否則不預先載入筆記（按需載入）
+		-- Otherwise don't preload notes (load on demand)
 	end
 
 	M.rebuild_tree_display(tree_state)
-	print("✅ 樹狀檢視已重新整理")
+	print("✅ Tree view refreshed")
 end
 
--- 提供一個備用的瀏覽器功能，不依賴 Neo-tree
+-- Provide an alternative browser function that doesn't depend on Neo-tree
 function M.browse()
 	print("📁 Joplin Browser (without Neo-tree)")
 	print("=====================================")
@@ -557,241 +557,241 @@ function M.browse()
 	print("\nℹ️  To open a note, use: :lua require('joplin.utils.buffer').open_note('note_id')")
 end
 
--- 顯示幫助資訊
+-- Display help information
 function M.show_help()
-	print("📖 Joplin.nvim 使用指南")
+	print("📖 Joplin.nvim User Guide")
 	print("=======================")
 	print("")
-	print("🎯 主要指令:")
-	print("  :JoplinTree         - 開啟互動式樹狀瀏覽器")
-	print("  :JoplinFind         - 開啟 Telescope 搜尋筆記")
-	print("  :JoplinSearch       - 開啟 Telescope 搜尋筆記 (同 JoplinFind)")
-	print("  :JoplinFindNotebook - 開啟 Telescope 搜尋 Notebook")
-	print("  :JoplinBrowse       - 開啟簡單文字清單瀏覽器")
-	print("  :JoplinPing         - 測試 Joplin 連線狀態")
-	print("  :JoplinHelp         - 顯示此幫助訊息")
+	print("🎯 Main Commands:")
+	print("  :JoplinTree         - Open interactive tree browser")
+	print("  :JoplinFind         - Open Telescope note search")
+	print("  :JoplinSearch       - Open Telescope note search (same as JoplinFind)")
+	print("  :JoplinFindNotebook - Open Telescope Notebook search")
+	print("  :JoplinBrowse       - Open simple text list browser")
+	print("  :JoplinPing         - Test Joplin connection status")
+	print("  :JoplinHelp         - Display this help message")
 	print("")
-	print("⌨️  快捷鍵:")
-	print("  " .. config.options.keymaps.search .. "         - 搜尋筆記 (預設: <leader>js)")
-	print("  " .. config.options.keymaps.search_notebook .. "   - 搜尋 Notebook (預設: <leader>jsnb)")
-	print("  " .. config.options.keymaps.toggle_tree .. "       - 切換樹狀檢視 (預設: <leader>jt)")
+	print("⌨️  Shortcut Keys:")
+	print("  " .. config.options.keymaps.search .. "         - Search notes (default: <leader>js)")
+	print("  " .. config.options.keymaps.search_notebook .. "   - Search Notebook (default: <leader>jsnb)")
+	print("  " .. config.options.keymaps.toggle_tree .. "       - Toggle tree view (default: <leader>jt)")
 	print("")
-	print("🔍 筆記搜尋功能:")
-	print("  • 使用 Telescope 提供即時搜尋體驗")
-	print("  • 搜尋筆記標題和內容")
-	print("  • 提供筆記預覽")
-	print("  • Enter    - 在當前視窗開啟筆記")
-	print("  • Ctrl+V   - 在分割視窗開啟筆記")
+	print("🔍 Note Search Features:")
+	print("  • Uses Telescope for instant search experience")
+	print("  • Search note titles and content")
+	print("  • Provides note preview")
+	print("  • Enter    - Open note in current window")
+	print("  • Ctrl+V   - Open note in split window")
 	print("")
-	print("📁 Notebook 搜尋功能:")
-	print("  • 使用 Telescope 搜尋資料夾")
-	print("  • 即時搜尋 Notebook 標題")
-	print("  • Enter    - 在現有樹狀檢視中展開該資料夾（若無則創建新樹狀檢視）")
-	print("  • 自動載入並顯示資料夾內的所有筆記")
+	print("📁 Notebook Search Features:")
+	print("  • Uses Telescope to search folders")
+	print("  • Instant search of Notebook titles")
+	print("  • Enter    - Expand folder in existing tree view (or create new tree view)")
+	print("  • Automatically loads and displays all notes in folder")
 	print("")
-	print("🌳 樹狀瀏覽器操作:")
-	print("  Enter    - 在上方視窗開啟筆記（替換內容）")
-	print("  o        - 在上方視窗垂直分割開啟筆記")
-	print("  a        - 建立新項目 (名稱以 '/' 結尾建立資料夾，否則建立筆記)")
-	print("  A        - 建立新資料夾 (快捷方式)")
-	print("  d        - 刪除筆記或資料夾 (需要確認)")
-	print("  r        - 重新命名筆記或資料夾")
-	print("  m        - 移動筆記或資料夾 (使用 Telescope 選擇目標)")
-	print("  R        - 重新整理樹狀結構")
-	print("  q        - 關閉樹狀瀏覽器")
+	print("🌳 Tree Browser Operations:")
+	print("  Enter    - Open note in upper window (replace content)")
+	print("  o        - Open note in upper window with vertical split")
+	print("  a        - Create new item (name ending with '/' creates folder, otherwise creates note)")
+	print("  A        - Create new folder (shortcut)")
+	print("  d        - Delete note or folder (requires confirmation)")
+	print("  r        - Rename note or folder")
+	print("  m        - Move note or folder (use Telescope to select target)")
+	print("  R        - Refresh tree structure")
+	print("  q        - Close tree browser")
 	print("")
-	print("⚙️  配置選項:")
-	print("  tree.height             - 樹狀檢視高度 (預設: 12)")
-	print("  tree.position           - 樹狀檢視位置 (預設: 'botright')")
-	print("  keymaps.enter           - Enter 鍵行為 ('replace' 或 'vsplit')")
-	print("  keymaps.o               - o 鍵行為 ('vsplit' 或 'replace')")
-	print("  keymaps.search          - 筆記搜尋快捷鍵 (預設: '<leader>js')")
-	print("  keymaps.search_notebook - Notebook 搜尋快捷鍵 (預設: '<leader>jsnb')")
-	print("  keymaps.toggle_tree     - 樹狀檢視切換快捷鍵 (預設: '<leader>jt')")
+	print("⚙️  Configuration Options:")
+	print("  tree.height             - Tree view height (default: 12)")
+	print("  tree.position           - Tree view position (default: 'botright')")
+	print("  keymaps.enter           - Enter key behavior ('replace' or 'vsplit')")
+	print("  keymaps.o               - o key behavior ('vsplit' or 'replace')")
+	print("  keymaps.search          - Note search shortcut key (default: '<leader>js')")
+	print("  keymaps.search_notebook - Notebook search shortcut key (default: '<leader>jsnb')")
+	print("  keymaps.toggle_tree     - Tree view toggle shortcut key (default: '<leader>jt')")
 	print("")
-	print("⚠️  重要提醒:")
-	print("  • 確保 Joplin Web Clipper 服務正在運行")
-	print("  • 搜尋功能需要安裝 telescope.nvim")
-	print("  • 樹狀檢視會在底部開啟，類似 quickfix 視窗")
-	print("  • 筆記會智能地在上方視窗開啟")
+	print("⚠️  Important Reminders:")
+	print("  • Ensure Joplin Web Clipper service is running")
+	print("  • Search functionality requires telescope.nvim installation")
+	print("  • Tree view opens at bottom, similar to quickfix window")
+	print("  • Notes intelligently open in upper window")
 	print("")
-	print("💡 需要協助？請參考 GitHub repository 或提交 issue")
+	print("💡 Need help? Please refer to GitHub repository or submit an issue")
 end
 
--- 建立新筆記
+-- Create new note
 function M.create_note(folder_id, title)
 	if not title or title == "" then
-		print("❌ 筆記標題不能為空")
+		print("❌ Note title cannot be empty")
 		return
 	end
 
 	if not folder_id then
-		print("❌ 需要指定資料夾 ID")
+		print("❌ Folder ID is required")
 		return
 	end
 
-	print("📝 建立新筆記: " .. title)
+	print("📝 Creating new note: " .. title)
 
 	local success, result = api.create_note(title, "", folder_id)
 	if not success then
-		print("❌ 建立筆記失敗: " .. result)
+		print("❌ Failed to create note: " .. result)
 		vim.notify("Failed to create note: " .. result, vim.log.levels.ERROR)
 		return
 	end
 
-	print("✅ 筆記建立成功: " .. result.id)
+	print("✅ Note created successfully: " .. result.id)
 	vim.notify("Note created successfully: " .. title, vim.log.levels.INFO)
 
-	-- 自動開啟新建立的筆記，使用與正常開啟筆記相同的邏輯
+	-- Automatically open newly created note, using same logic as normal note opening
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if tree_state then
-		-- 使用與 Enter 鍵相同的邏輯開啟筆記
+		-- Use same logic as Enter key to open note
 		local target_win = M.find_target_window(tree_state)
 		local config = require("joplin.config")
 		M.open_note_in_window(result.id, target_win, config.options.keymaps.enter)
-		print("✅ 新筆記已在上方視窗開啟")
+		print("✅ New note opened in upper window")
 	else
-		-- 如果沒有樹狀結構，回退到原來的方式
+		-- If no tree structure, fallback to original method
 		local buffer_utils = require("joplin.utils.buffer")
 		local open_success, open_result = pcall(buffer_utils.open_note, result.id, "vsplit")
 		if not open_success then
-			print("❌ 開啟新筆記失敗: " .. open_result)
+			print("❌ Failed to open new note: " .. open_result)
 		else
-			print("✅ 新筆記已在 vsplit 中開啟")
+			print("✅ New note opened in vsplit")
 		end
 	end
 
 	return result
 end
 
--- 刪除筆記
+-- Delete note
 function M.delete_note(note_id)
 	if not note_id then
-		print("❌ 需要指定筆記 ID")
+		print("❌ Note ID is required")
 		return
 	end
 
-	-- 確認刪除
-	local confirm = vim.fn.input("確定要刪除此筆記嗎？(y/n): ")
+	-- Confirm deletion
+	local confirm = vim.fn.input("Are you sure you want to delete this note? (y/n): ")
 	if confirm ~= "y" and confirm ~= "Y" then
-		print("❌ 取消刪除操作")
+		print("❌ Deletion cancelled")
 		return false
 	end
 
-	print("🗑️  刪除筆記 ID: " .. note_id)
+	print("🗑️  Deleting note ID: " .. note_id)
 
 	local success, result = api.delete_note(note_id)
 	if not success then
-		print("❌ 刪除筆記失敗: " .. result)
+		print("❌ Failed to delete note: " .. result)
 		vim.notify("Failed to delete note: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 筆記刪除成功")
+	print("✅ Note deleted successfully")
 	vim.notify("Note deleted successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 刪除資料夾
+-- Delete folder
 function M.delete_folder(folder_id)
 	if not folder_id then
-		print("❌ 需要指定資料夾 ID")
+		print("❌ Folder ID is required")
 		return false
 	end
 
-	-- 確認刪除
-	local confirm = vim.fn.input("確定要刪除此資料夾嗎？(y/n): ")
+	-- Confirm deletion
+	local confirm = vim.fn.input("Are you sure you want to delete this folder? (y/n): ")
 	if confirm ~= "y" and confirm ~= "Y" then
-		print("❌ 取消刪除操作")
+		print("❌ Deletion cancelled")
 		return false
 	end
 
-	print("🗑️  刪除資料夾 ID: " .. folder_id)
+	print("🗑️  Deleting folder ID: " .. folder_id)
 
 	local success, result = api.delete_folder(folder_id)
 	if not success then
-		print("❌ 刪除資料夾失敗: " .. result)
+		print("❌ Failed to delete folder: " .. result)
 		vim.notify("Failed to delete folder: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 資料夾刪除成功")
+	print("✅ Folder deleted successfully")
 	vim.notify("Folder deleted successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 重新命名筆記
+-- Rename note
 function M.rename_note(note_id, new_title)
 	if not note_id then
-		print("❌ 需要指定筆記 ID")
+		print("❌ Note ID is required")
 		return false
 	end
 
 	if not new_title or new_title == "" then
-		print("❌ 需要指定新的筆記標題")
+		print("❌ New note title is required")
 		return false
 	end
 
-	print("📝 重新命名筆記 ID: " .. note_id .. " -> " .. new_title)
+	print("📝 Renaming note ID: " .. note_id .. " -> " .. new_title)
 
 	local success, result = api.update_note(note_id, { title = new_title })
 	if not success then
-		print("❌ 重新命名筆記失敗: " .. result)
+		print("❌ Failed to rename note: " .. result)
 		vim.notify("Failed to rename note: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 筆記重新命名成功")
+	print("✅ Note renamed successfully")
 	vim.notify("Note renamed successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 重新命名資料夾
+-- Rename folder
 function M.rename_folder(folder_id, new_title)
 	if not folder_id then
-		print("❌ 需要指定資料夾 ID")
+		print("❌ Folder ID is required")
 		return false
 	end
 
 	if not new_title or new_title == "" then
-		print("❌ 需要指定新的資料夾標題")
+		print("❌ New folder title is required")
 		return false
 	end
 
-	print("📁 重新命名資料夾 ID: " .. folder_id .. " -> " .. new_title)
+	print("📁 Renaming folder ID: " .. folder_id .. " -> " .. new_title)
 
 	local success, result = api.update_folder(folder_id, { title = new_title })
 	if not success then
-		print("❌ 重新命名資料夾失敗: " .. result)
+		print("❌ Failed to rename folder: " .. result)
 		vim.notify("Failed to rename folder: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 資料夾重新命名成功")
+	print("✅ Folder renamed successfully")
 	vim.notify("Folder renamed successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 獲取指定 buffer 的 tree_state
+-- Get tree_state for the specified buffer
 function M.get_tree_state_for_buffer(bufnr)
 	local tree_ui = require("joplin.ui.tree")
 	return tree_ui.get_tree_state_for_buffer(bufnr)
 end
 
--- 從樹狀檢視建立新項目 (筆記或資料夾)
+-- Create new item from tree (note or folder)
 function M.create_item_from_tree()
-	-- 獲取當前 buffer 的 tree_state
+	-- Get tree_state for the current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
@@ -799,60 +799,60 @@ function M.create_item_from_tree()
 	local line_data = tree_state.line_data[line_num]
 
 	if not line_data then
-		print("❌ 無法解析當前行")
+		print("❌ Cannot parse current line")
 		return
 	end
 
 	local parent_folder_id = nil
 
-	-- 如果當前行是資料夾，使用該資料夾作為父資料夾
+	-- If the current line is a folder, use it as the parent folder
 	if line_data.type == "folder" then
 		parent_folder_id = line_data.id
-	-- 如果當前行是筆記，使用其父資料夾
+	-- If the current line is a note, use its parent folder
 	elseif line_data.type == "note" then
-		-- 需要找到該筆記的父資料夾 ID
+		-- Need to find the parent folder ID of the note
 		local success, note = api.get_note(line_data.id)
 		if success and note.parent_id then
 			parent_folder_id = note.parent_id
 		else
-			print("❌ 無法確定父資料夾，請在資料夾行上建立新項目")
+			print("❌ Cannot determine parent folder, please create new item on a folder line")
 			return
 		end
 	else
-		print("❌ 請選擇一個資料夾或筆記來建立新項目")
+		print("❌ Please select a folder or note to create a new item")
 		return
 	end
 
-	-- 顯示輸入對話框
-	local input = vim.fn.input("建立新項目 (以 '/' 結尾建立資料夾): ")
+	-- Show input dialog
+	local input = vim.fn.input("Create new item (end with '/' to create a folder): ")
 	if input == "" then
-		print("❌ 取消建立操作")
+		print("❌ Create operation cancelled")
 		return
 	end
 
 	local result = nil
 
-	-- 檢查是否以 '/' 結尾
+	-- Check if it ends with '/'
 	if input:sub(-1) == "/" then
-		-- 建立資料夾
-		local folder_name = input:sub(1, -2) -- 移除最後的 '/'
+		-- Create folder
+		local folder_name = input:sub(1, -2) -- remove last '/'
 		if folder_name == "" then
-			print("❌ 資料夾名稱不能為空")
+			print("❌ Folder name cannot be empty")
 			return
 		end
 		result = M.create_folder(parent_folder_id, folder_name)
 	else
-		-- 建立筆記
+		-- Create note
 		result = M.create_note(parent_folder_id, input)
 	end
 
-	-- 如果建立成功，立即更新本地狀態
+	-- If creation is successful, update local state immediately
 	if result then
-		print("✅ 項目建立成功，更新顯示...")
+		print("✅ Item created successfully, updating display...")
 
-		-- 如果建立的是資料夾，立即添加到本地狀態
+		-- If a folder was created, add it to the local state immediately
 		if input:sub(-1) == "/" then
-			-- 添加新資料夾到本地狀態
+			-- Add new folder to local state
 			local new_folder = {
 				id = result.id,
 				title = result.title,
@@ -862,9 +862,9 @@ function M.create_item_from_tree()
 			tree_state.expanded[result.id] = false
 			tree_state.loading[result.id] = false
 		else
-			-- 如果建立的是筆記，將新筆記添加到已載入的筆記列表中
+			-- If a note was created, add the new note to the loaded notes list
 			if tree_state.folder_notes[parent_folder_id] then
-				-- 如果該資料夾的筆記已經載入，將新筆記添加到列表中
+				-- If the notes for this folder are already loaded, add the new note to the list
 				local new_note = {
 					id = result.id,
 					title = result.title,
@@ -874,29 +874,29 @@ function M.create_item_from_tree()
 				}
 				table.insert(tree_state.folder_notes[parent_folder_id], new_note)
 
-				-- 按標題排序筆記列表
+				-- Sort note list by title
 				table.sort(tree_state.folder_notes[parent_folder_id], function(a, b)
 					return (a.title or "") < (b.title or "")
 				end)
 			else
-				-- 如果該資料夾的筆記尚未載入，不需要做任何事
-				-- 下次展開時會自動載入包含新筆記的完整列表
+				-- If the notes for this folder are not yet loaded, do nothing
+				-- The full list including the new note will be loaded automatically next time it is expanded
 			end
 		end
 
-		-- 立即重建顯示
+		-- Rebuild display immediately
 		M.rebuild_tree_display(tree_state)
 	end
 end
 
--- 從樹狀檢視建立新資料夾 (A 鍵快捷方式)
+-- Create new folder from tree view (A key shortcut)
 function M.create_folder_from_tree()
-	-- 獲取當前 buffer 的 tree_state
+	-- Get tree_state for the current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
@@ -904,44 +904,44 @@ function M.create_folder_from_tree()
 	local line_data = tree_state.line_data[line_num]
 
 	if not line_data then
-		print("❌ 無法解析當前行")
+		print("❌ Cannot parse current line")
 		return
 	end
 
 	local parent_folder_id = nil
 
-	-- 如果當前行是資料夾，使用該資料夾作為父資料夾
+	-- If the current line is a folder, use it as the parent folder
 	if line_data.type == "folder" then
 		parent_folder_id = line_data.id
-	-- 如果當前行是筆記，使用其父資料夾
+	-- If the current line is a note, use its parent folder
 	elseif line_data.type == "note" then
-		-- 需要找到該筆記的父資料夾 ID
+		-- Need to find the parent folder ID of the note
 		local success, note = api.get_note(line_data.id)
 		if success and note.parent_id then
 			parent_folder_id = note.parent_id
 		else
-			print("❌ 無法確定父資料夾，請在資料夾行上建立新資料夾")
+			print("❌ Cannot determine parent folder, please create new folder on a folder line")
 			return
 		end
 	else
-		print("❌ 請選擇一個資料夾或筆記來建立新資料夾")
+		print("❌ Please select a folder or note to create a new folder")
 		return
 	end
 
-	-- 顯示輸入對話框
-	local folder_name = vim.fn.input("新資料夾名稱: ")
+	-- Show input dialog
+	local folder_name = vim.fn.input("New folder name: ")
 	if folder_name == "" then
-		print("❌ 取消建立操作")
+		print("❌ Create operation cancelled")
 		return
 	end
 
 	local result = M.create_folder(parent_folder_id, folder_name)
 
-	-- 如果建立成功，立即更新本地狀態
+	-- If creation is successful, update local state immediately
 	if result then
-		print("✅ 資料夾建立成功，更新顯示...")
+		print("✅ Folder created successfully, updating display...")
 
-		-- 添加新資料夾到本地狀態
+		-- Add new folder to local state
 		local new_folder = {
 			id = result.id,
 			title = result.title,
@@ -951,24 +951,24 @@ function M.create_folder_from_tree()
 		tree_state.expanded[result.id] = false
 		tree_state.loading[result.id] = false
 
-		-- 立即重建顯示
+		-- Rebuild display immediately
 		M.rebuild_tree_display(tree_state)
 	end
 end
 
--- 輕量級樹狀檢視重新整理（只更新資料夾列表，不重新載入所有筆記）
+-- Lightweight tree view refresh (only update folder list, do not reload all notes)
 function M.refresh_tree_lightweight(tree_state)
-	-- 重新獲取資料夾列表
+	-- Re-fetch folder list
 	local folders_success, folders = api.get_folders()
 	if not folders_success then
 		print("❌ Failed to refresh folders")
 		return
 	end
 
-	-- 更新資料夾列表
+	-- Update folder list
 	tree_state.folders = folders
 
-	-- 為新資料夾初始化狀態（不影響已存在的資料夾）
+	-- Initialize state for new folders (does not affect existing folders)
 	for _, folder in ipairs(folders) do
 		if tree_state.expanded[folder.id] == nil then
 			tree_state.expanded[folder.id] = false
@@ -978,46 +978,46 @@ function M.refresh_tree_lightweight(tree_state)
 		end
 	end
 
-	-- 重建顯示內容
+	-- Rebuild display content
 	M.rebuild_tree_display(tree_state)
-	print("✅ 樹狀檢視已更新")
+	print("✅ Tree view updated")
 end
 
--- 建立新資料夾
+-- Create new folder
 function M.create_folder(parent_id, title)
 	if not title or title == "" then
-		print("❌ 資料夾標題不能為空")
+		print("❌ Folder title cannot be empty")
 		return
 	end
 
 	if not parent_id then
-		print("❌ 需要指定父資料夾 ID")
+		print("❌ Parent folder ID is required")
 		return
 	end
 
-	print("📁 建立新資料夾: " .. title)
+	print("📁 Creating new folder: " .. title)
 
 	local success, result = api.create_folder(title, parent_id)
 	if not success then
-		print("❌ 建立資料夾失敗: " .. result)
+		print("❌ Failed to create folder: " .. result)
 		vim.notify("Failed to create folder: " .. result, vim.log.levels.ERROR)
 		return
 	end
 
-	print("✅ 資料夾建立成功: " .. result.id)
+	print("✅ Folder created successfully: " .. result.id)
 	vim.notify("Folder created successfully: " .. title, vim.log.levels.INFO)
 
 	return result
 end
 
--- 從樹狀檢視刪除筆記或資料夾
+-- Delete note or folder from tree view
 function M.delete_item_from_tree()
-	-- 獲取當前 buffer 的 tree_state
+	-- Get tree_state for the current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
@@ -1025,12 +1025,12 @@ function M.delete_item_from_tree()
 	local line_data = tree_state.line_data[line_num]
 
 	if not line_data then
-		print("❌ 無法解析當前行")
+		print("❌ Cannot parse current line")
 		return
 	end
 
 	if line_data.type ~= "note" and line_data.type ~= "folder" then
-		print("❌ 只能刪除筆記或資料夾")
+		print("❌ Only notes or folders can be deleted")
 		return
 	end
 
@@ -1041,12 +1041,12 @@ function M.delete_item_from_tree()
 		success = M.delete_folder(line_data.id)
 	end
 
-	-- 如果刪除成功，立即更新本地狀態
+	-- If deletion is successful, update local state immediately
 	if success then
 		if line_data.type == "note" then
-			print("✅ 筆記刪除成功，更新顯示...")
+			print("✅ Note deleted successfully, updating display...")
 
-			-- 從已載入的筆記列表中移除該筆記
+			-- Remove the note from the loaded notes list
 			for folder_id, notes in pairs(tree_state.folder_notes) do
 				if notes then
 					for i, note in ipairs(notes) do
@@ -1058,9 +1058,9 @@ function M.delete_item_from_tree()
 				end
 			end
 		else -- folder
-			print("✅ 資料夾刪除成功，更新顯示...")
+			print("✅ Folder deleted successfully, updating display...")
 
-			-- 從資料夾列表中移除已刪除的資料夾
+			-- Remove the deleted folder from the folder list
 			if tree_state.folders then
 				for i, folder in ipairs(tree_state.folders) do
 					if folder.id == line_data.id then
@@ -1070,7 +1070,7 @@ function M.delete_item_from_tree()
 				end
 			end
 
-			-- 清除與該資料夾相關的快取
+			-- Clear cache related to this folder
 			if tree_state.folder_notes then
 				tree_state.folder_notes[line_data.id] = nil
 			end
@@ -1082,19 +1082,19 @@ function M.delete_item_from_tree()
 			end
 		end
 
-		-- 重建樹狀顯示
+		-- Rebuild tree display
 		M.rebuild_tree_display(tree_state)
 	end
 end
 
--- 從樹狀檢視重新命名筆記或資料夾
+-- Rename note or folder from tree view
 function M.rename_item_from_tree()
-	-- 獲取當前 buffer 的 tree_state
+	-- Get tree_state for the current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
@@ -1102,19 +1102,19 @@ function M.rename_item_from_tree()
 	local line_data = tree_state.line_data[line_num]
 
 	if not line_data then
-		print("❌ 無法解析當前行")
+		print("❌ Cannot parse current line")
 		return
 	end
 
 	if line_data.type ~= "note" and line_data.type ~= "folder" then
-		print("❌ 只能重新命名筆記或資料夾")
+		print("❌ Only notes or folders can be renamed")
 		return
 	end
 
-	-- 獲取當前名稱作為預設值
+	-- Get current name as default value
 	local current_title = line_data.title or ""
 	if line_data.type == "folder" then
-		-- 從 folders 列表中獲取確切的標題
+		-- Get the exact title from the folders list
 		for _, folder in ipairs(tree_state.folders or {}) do
 			if folder.id == line_data.id then
 				current_title = folder.title or ""
@@ -1122,7 +1122,7 @@ function M.rename_item_from_tree()
 			end
 		end
 	else -- note
-		-- 從 folder_notes 中獲取確切的標題
+		-- Get the exact title from folder_notes
 		for _, notes in pairs(tree_state.folder_notes or {}) do
 			if notes then
 				for _, note in ipairs(notes) do
@@ -1135,22 +1135,22 @@ function M.rename_item_from_tree()
 		end
 	end
 
-	-- 顯示輸入對話框，使用當前標題作為預設值
+	-- Show input dialog, using the current title as the default value
 	local new_title = vim.fn.input({
-		prompt = "新名稱: ",
+		prompt = "New name: ",
 		default = current_title,
 		completion = "file",
 	})
 
-	-- 檢查用戶是否取消了輸入
+	-- Check if the user cancelled the input
 	if not new_title or new_title == "" then
-		print("❌ 取消重新命名操作")
+		print("❌ Rename operation cancelled")
 		return
 	end
 
-	-- 檢查名稱是否有變化
+	-- Check if the name has changed
 	if new_title == current_title then
-		print("⚠️  名稱沒有變化")
+		print("⚠️  Name has not changed")
 		return
 	end
 
@@ -1161,12 +1161,12 @@ function M.rename_item_from_tree()
 		success = M.rename_folder(line_data.id, new_title)
 	end
 
-	-- 如果重新命名成功，立即更新本地狀態
+	-- If renaming is successful, update local state immediately
 	if success then
 		if line_data.type == "note" then
-			print("✅ 筆記重新命名成功，更新顯示...")
+			print("✅ Note renamed successfully, updating display...")
 
-			-- 更新已載入的筆記列表中的標題
+			-- Update the title in the loaded notes list
 			for folder_id, notes in pairs(tree_state.folder_notes) do
 				if notes then
 					for _, note in ipairs(notes) do
@@ -1178,9 +1178,9 @@ function M.rename_item_from_tree()
 				end
 			end
 		else -- folder
-			print("✅ 資料夾重新命名成功，更新顯示...")
+			print("✅ Folder renamed successfully, updating display...")
 
-			-- 更新資料夾列表中的標題
+			-- Update the title in the folder list
 			for _, folder in ipairs(tree_state.folders or {}) do
 				if folder.id == line_data.id then
 					folder.title = new_title
@@ -1189,16 +1189,16 @@ function M.rename_item_from_tree()
 			end
 		end
 
-		-- 重建樹狀顯示
+		-- Rebuild tree display
 		M.rebuild_tree_display(tree_state)
 	end
 end
 
--- 搜尋筆記 (Telescope fuzzy finder)
+-- Search notes (Telescope fuzzy finder)
 function M.search_notes(default_text)
 	local search_ui = require("joplin.ui.search")
 
-	-- 檢查 Telescope 是否可用
+	-- Check if Telescope is available
 	if not search_ui.is_telescope_available() then
 		vim.notify(
 			"Telescope is not installed. Please install telescope.nvim to use search functionality.",
@@ -1207,14 +1207,14 @@ function M.search_notes(default_text)
 		return
 	end
 
-	-- 檢查 Joplin 連接
+	-- Check Joplin connection
 	local ping_ok, ping_result = api.ping()
 	if not ping_ok then
 		vim.notify("Cannot connect to Joplin: " .. ping_result, vim.log.levels.ERROR)
 		return
 	end
 
-	-- 開啟搜尋界面
+	-- Open search interface
 	search_ui.search_notes({
 		default_text = default_text,
 		layout_strategy = "horizontal",
@@ -1226,11 +1226,11 @@ function M.search_notes(default_text)
 	})
 end
 
--- 搜尋 notebooks (Telescope fuzzy finder)
+-- Search notebooks (Telescope fuzzy finder)
 function M.search_notebooks(default_text)
 	local search_ui = require("joplin.ui.search")
 
-	-- 檢查 Telescope 是否可用
+	-- Check if Telescope is available
 	if not search_ui.is_telescope_available() then
 		vim.notify(
 			"Telescope is not installed. Please install telescope.nvim to use search functionality.",
@@ -1239,14 +1239,14 @@ function M.search_notebooks(default_text)
 		return
 	end
 
-	-- 檢查 Joplin 連接
+	-- Check Joplin connection
 	local ping_ok, ping_result = api.ping()
 	if not ping_ok then
 		vim.notify("Cannot connect to Joplin: " .. ping_result, vim.log.levels.ERROR)
 		return
 	end
 
-	-- 開啟搜尋界面
+	-- Open search interface
 	search_ui.search_notebooks({
 		default_text = default_text,
 		layout_strategy = "horizontal",
@@ -1256,7 +1256,7 @@ function M.search_notebooks(default_text)
 		},
 	})
 end
--- 調試用：驗證資料夾展開功能
+-- For debugging: verify folder expansion functionality
 function M.debug_expand_folder(folder_id)
 	print("=== Debug Expand Folder ===")
 	print("Target folder ID: " .. (folder_id or "nil"))
@@ -1264,7 +1264,7 @@ function M.debug_expand_folder(folder_id)
 	local tree_ui = require("joplin.ui.tree")
 	local api = require("joplin.api.client")
 
-	-- 檢查 API 連接
+	-- Check API connection
 	local ping_success, ping_result = api.ping()
 	if not ping_success then
 		print("❌ API connection failed: " .. ping_result)
@@ -1272,7 +1272,7 @@ function M.debug_expand_folder(folder_id)
 	end
 	print("✅ API connected: " .. ping_result)
 
-	-- 獲取所有資料夾
+	-- Get all folders
 	local folders_success, folders = api.get_folders()
 	if not folders_success then
 		print("❌ Failed to get folders: " .. folders)
@@ -1280,7 +1280,7 @@ function M.debug_expand_folder(folder_id)
 	end
 	print("✅ Retrieved " .. #folders .. " folders")
 
-	-- 檢查目標資料夾是否存在
+	-- Check if the target folder exists
 	local target_folder = nil
 	for _, folder in ipairs(folders) do
 		if folder.id == folder_id then
@@ -1301,7 +1301,7 @@ function M.debug_expand_folder(folder_id)
 	print("✅ Found target folder: " .. (target_folder.title or "Untitled"))
 	print("    Parent ID: " .. (target_folder.parent_id or "none"))
 
-	-- 檢查樹狀檢視狀態
+	-- Check tree view state
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
 	if tree_winid then
 		print("✅ Found active tree window: " .. tree_winid)
@@ -1314,114 +1314,114 @@ function M.debug_expand_folder(folder_id)
 	M.expand_to_folder(folder_id)
 end
 
--- 展開到指定 folder 並顯示其筆記
+-- Expand to the specified folder and display its notes
 function M.expand_to_folder(folder_id)
 	if not folder_id then
 		vim.notify("Folder ID is required", vim.log.levels.ERROR)
 		return
 	end
 
-	print("🔍 正在展開到資料夾: " .. folder_id)
+	print("🔍 Expanding to folder: " .. folder_id)
 
 	local tree_ui = require("joplin.ui.tree")
 
-	-- 檢查是否已有活躍的樹狀檢視視窗
+	-- Check if there is an active tree view window
 	local tree_winid, tree_bufnr = tree_ui.find_active_tree_window()
 
 	if tree_winid then
-		-- 如果已有樹狀檢視視窗，直接在其中展開
-		print("✅ 使用現有的樹狀檢視")
-		-- 立即嘗試展開，如果失敗則稍後重試
+		-- If there is an existing tree view window, expand directly in it
+		print("✅ Using existing tree view")
+		-- Try to expand immediately, if it fails, retry later
 		local success = tree_ui.expand_to_folder(folder_id)
 		if not success then
-			print("⏳ 第一次展開失敗，正在重試...")
+			print("⏳ First expand failed, retrying...")
 			vim.defer_fn(function()
 				local retry_success = tree_ui.expand_to_folder(folder_id)
 				if not retry_success then
-					print("❌ 展開失敗，可能該資料夾不存在")
+					print("❌ Expand failed, the folder may not exist")
 				end
 			end, 100)
 		end
 	else
-		-- 如果沒有樹狀檢視視窗，創建新的
-		print("📂 創建新的樹狀檢視")
+		-- If there is no tree view window, create a new one
+		print("📂 Creating new tree view")
 		M.create_tree()
 
-		-- 等待 tree 創建完成後再展開
+		-- Wait for the tree to be created before expanding
 		vim.defer_fn(function()
 			local success = tree_ui.expand_to_folder(folder_id)
 			if not success then
-				print("⏳ 樹狀檢視創建後展開失敗，正在重試...")
+				print("⏳ Expand failed after tree view creation, retrying...")
 				vim.defer_fn(function()
 					tree_ui.expand_to_folder(folder_id)
-				end, 200) -- 更長的延遲給新創建的樹狀檢視
+				end, 200) -- longer delay for newly created tree view
 			end
-		end, 150) -- 稍微增加延遲確保樹狀檢視完全創建
+		end, 150) -- slightly increase delay to ensure tree view is fully created
 	end
 end
 
--- 移動筆記到指定資料夾
+-- Move note to specified folder
 function M.move_note(note_id, new_parent_id)
 	if not note_id then
-		print("❌ 需要指定筆記 ID")
+		print("❌ Note ID is required")
 		return false
 	end
 
 	if not new_parent_id then
-		print("❌ 需要指定目標資料夾 ID")
+		print("❌ Target folder ID is required")
 		return false
 	end
 
-	print("📝 移動筆記 ID: " .. note_id .. " -> 資料夾 ID: " .. new_parent_id)
+	print("📝 Moving note ID: " .. note_id .. " -> Folder ID: " .. new_parent_id)
 
 	local success, result = api.move_note(note_id, new_parent_id)
 	if not success then
-		print("❌ 移動筆記失敗: " .. result)
+		print("❌ Failed to move note: " .. result)
 		vim.notify("Failed to move note: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 筆記移動成功")
+	print("✅ Note moved successfully")
 	vim.notify("Note moved successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 移動資料夾到指定父資料夾
+-- Move folder to specified parent folder
 function M.move_folder(folder_id, new_parent_id)
 	if not folder_id then
-		print("❌ 需要指定資料夾 ID")
+		print("❌ Folder ID is required")
 		return false
 	end
 
 	if not new_parent_id then
-		print("❌ 需要指定目標父資料夾 ID")
+		print("❌ Target parent folder ID is required")
 		return false
 	end
 
-	print("📁 移動資料夾 ID: " .. folder_id .. " -> 父資料夾 ID: " .. new_parent_id)
+	print("📁 Moving folder ID: " .. folder_id .. " -> Parent folder ID: " .. new_parent_id)
 
 	local success, result = api.move_folder(folder_id, new_parent_id)
 	if not success then
-		print("❌ 移動資料夾失敗: " .. result)
+		print("❌ Failed to move folder: " .. result)
 		vim.notify("Failed to move folder: " .. result, vim.log.levels.ERROR)
 		return false
 	end
 
-	print("✅ 資料夾移動成功")
+	print("✅ Folder moved successfully")
 	vim.notify("Folder moved successfully", vim.log.levels.INFO)
 
 	return true
 end
 
--- 從樹狀檢視移動筆記或資料夾
+-- Move note or folder from tree view
 function M.move_item_from_tree()
-	-- 獲取當前 buffer 的 tree_state
+	-- Get tree_state for the current buffer
 	local bufnr = vim.api.nvim_get_current_buf()
 	local tree_state = M.get_tree_state_for_buffer(bufnr)
 
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
@@ -1429,23 +1429,23 @@ function M.move_item_from_tree()
 	local line_data = tree_state.line_data[line_num]
 
 	if not line_data then
-		print("❌ 無法解析當前行")
+		print("❌ Cannot parse current line")
 		return
 	end
 
 	if line_data.type ~= "note" and line_data.type ~= "folder" then
-		print("❌ 只能移動筆記或資料夾")
+		print("❌ Only notes or folders can be moved")
 		return
 	end
 
-	-- 獲取項目資訊
+	-- Get item information
 	local item_type = line_data.type
 	local item_id = line_data.id
 	local item_title = line_data.title or "Unknown"
 
-	print("📦 準備移動 " .. item_type .. ": " .. item_title)
+	print("📦 Preparing to move " .. item_type .. ": " .. item_title)
 
-	-- 檢查 Telescope 是否可用
+	-- Check if Telescope is available
 	local search_ui = require("joplin.ui.search")
 	if not search_ui.is_telescope_available() then
 		vim.notify(
@@ -1455,7 +1455,7 @@ function M.move_item_from_tree()
 		return
 	end
 
-	-- 開啟移動目標選擇對話框
+	-- Open move destination selection dialog
 	search_ui.search_move_destination(item_type, item_id, item_title, {
 		layout_strategy = "horizontal",
 		layout_config = {
@@ -1465,45 +1465,45 @@ function M.move_item_from_tree()
 	})
 end
 
--- 自動同步函數（用於自動觸發）
+-- Auto-sync function (for automatic triggering)
 local last_synced_note = nil
 
 function M.auto_sync_to_current_note()
 	local buffer_utils = require("joplin.utils.buffer")
 	local tree_ui = require("joplin.ui.tree")
 
-	-- 檢查是否啟用自動同步
+	-- Check if auto-sync is enabled
 	local config = require("joplin.config")
 	if not config.options.tree.auto_sync then
 		return
 	end
 
-	-- 檢查當前 buffer 是否為 Joplin 筆記
+	-- Check if the current buffer is a Joplin note
 	local note_info = buffer_utils.get_note_info()
 	if not note_info then
 		return
 	end
 
-	-- 檢查是否有活躍的樹狀視窗
+	-- Check if there is an active tree window
 	local tree_bufnr = tree_ui.find_active_tree_buffer()
 	if not tree_bufnr then
 		return
 	end
 
-	-- 避免重複同步相同筆記
+	-- Avoid repeatedly syncing the same note
 	if last_synced_note == note_info.note_id then
 		return
 	end
 
-	-- 檢查筆記是否有父資料夾
+	-- Check if the note has a parent folder
 	if not note_info.parent_id or note_info.parent_id == "" then
 		return
 	end
 
-	-- 記錄當前同步的筆記，避免重複
+	-- Record the currently synced note to avoid repetition
 	last_synced_note = note_info.note_id
 
-	-- 靜默執行同步（第三個參數為 true 表示靜默模式）
+	-- Silently execute synchronization (the third parameter being true indicates silent mode)
 	tree_ui.expand_and_highlight_note(note_info.parent_id, note_info.note_id, true)
 end
 

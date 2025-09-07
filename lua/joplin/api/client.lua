@@ -11,24 +11,24 @@ local function build_url(path, params)
 	params.token = config.get_token()
 	local query = {}
 	for k, v in pairs(params) do
-		-- 對參數值進行 URL encoding，但不要轉義逗號（fields 參數需要逗號）
-		local encoded_value = tostring(v):gsub("([^%w%-%.%_%~])", function(c)
-			return string.format("%%%02X", string.byte(c))
-		end)
-		table.insert(query, string.format("%s=%s", k, encoded_value))
-	end
-	if #query > 0 then
-		return base .. "?" .. table.concat(query, "&")
-	else
-		return base
-	end
+	-- URL encode parameter values, but don't escape commas (fields parameter needs commas)
+	local encoded_value = tostring(v):gsub("([^%w%-%.%_%~])", function(c)
+		return string.format("%%%02X", string.byte(c))
+	end)
+	table.insert(query, string.format("%s=%s", k, encoded_value))
+end
+if #query > 0 then
+	return base .. "?" .. table.concat(query, "&")
+else
+	return base
+end
 end
 
 local function sleep(ms)
 	vim.fn.system(string.format("sleep %f", ms / 1000))
 end
 
--- 執行刪除請求（DELETE 請求成功時可能返回空響應）
+-- Execute DELETE requests (DELETE requests may return empty response when successful)
 local function execute_delete_request(cmd, retry_count)
 	retry_count = retry_count or DEFAULT_RETRY_COUNT
 	local last_error = nil
@@ -37,8 +37,8 @@ local function execute_delete_request(cmd, retry_count)
 		local result = vim.fn.system(cmd)
 
 		if vim.v.shell_error == 0 then
-			-- DELETE 請求成功，即使回應為空也視為成功
-			return true, result or ""
+		-- DELETE request successful, treat as success even if response is empty
+		return true, result or ""
 		else
 			last_error = string.format(
 				"HTTP DELETE request failed (attempt %d/%d): %s",
@@ -47,9 +47,9 @@ local function execute_delete_request(cmd, retry_count)
 				result or "Unknown error"
 			)
 
-			-- 如果不是最後一次嘗試，等待後重試
+			-- If not the last attempt, wait and retry
 			if attempt < retry_count then
-				sleep(DEFAULT_RETRY_DELAY * attempt) -- 指數退避
+				sleep(DEFAULT_RETRY_DELAY * attempt) -- exponential backoff
 			end
 		end
 	end
@@ -57,7 +57,7 @@ local function execute_delete_request(cmd, retry_count)
 	return false, last_error
 end
 
--- 執行 HTTP 請求與重試邏輯
+-- Execute HTTP requests with retry logic
 local function execute_request(cmd, retry_count)
 	retry_count = retry_count or DEFAULT_RETRY_COUNT
 	local last_error = nil
@@ -66,7 +66,7 @@ local function execute_request(cmd, retry_count)
 		local result = vim.fn.system(cmd)
 
 		if vim.v.shell_error == 0 then
-			-- 成功執行，檢查回應格式
+			-- Successful execution, check response format
 			if result and result ~= "" then
 				return true, result
 			else
@@ -80,9 +80,9 @@ local function execute_request(cmd, retry_count)
 				result or "Unknown error"
 			)
 
-			-- 如果不是最後一次嘗試，等待後重試
+			-- If not the last attempt, wait and retry
 			if attempt < retry_count then
-				sleep(DEFAULT_RETRY_DELAY * attempt) -- 指數退避
+				sleep(DEFAULT_RETRY_DELAY * attempt) -- exponential backoff
 			end
 		end
 	end
@@ -90,17 +90,17 @@ local function execute_request(cmd, retry_count)
 	return false, last_error
 end
 
--- 基本 GET 請求
+-- Basic GET request
 function M.get(path, params)
 	local url = build_url(path, params)
-	local cmd = string.format('curl -s -m 10 "%s"', url) -- 10秒超時
+	local cmd = string.format('curl -s -m 10 "%s"', url) -- 10 second timeout
 
 	local success, result = execute_request(cmd)
 	if not success then
 		error("Joplin API GET failed: " .. result)
 	end
 
-	-- 嘗試解析 JSON
+	-- Try to parse JSON
 	local ok, decoded = pcall(vim.fn.json_decode, result)
 	if not ok then
 		error("Invalid JSON response: " .. result)
@@ -109,7 +109,7 @@ function M.get(path, params)
 	return decoded
 end
 
--- 基本 POST 請求
+-- Basic POST request
 function M.post(path, data, params)
 	local url = build_url(path, params)
 	local json_data = vim.fn.json_encode(data or {})
@@ -124,7 +124,7 @@ function M.post(path, data, params)
 		error("Joplin API POST failed: " .. result)
 	end
 
-	-- 嘗試解析 JSON
+	-- Try to parse JSON
 	local ok, decoded = pcall(vim.fn.json_decode, result)
 	if not ok then
 		error("Invalid JSON response: " .. result)
@@ -133,7 +133,7 @@ function M.post(path, data, params)
 	return decoded
 end
 
--- 基本 PUT 請求
+-- Basic PUT request
 function M.put(path, data, params)
 	local url = build_url(path, params)
 	local json_data = vim.fn.json_encode(data or {})
@@ -148,7 +148,7 @@ function M.put(path, data, params)
 		error("Joplin API PUT failed: " .. result)
 	end
 
-	-- 嘗試解析 JSON
+	-- Try to parse JSON
 	local ok, decoded = pcall(vim.fn.json_decode, result)
 	if not ok then
 		error("Invalid JSON response: " .. result)
@@ -157,12 +157,12 @@ function M.put(path, data, params)
 	return decoded
 end
 
--- 測試 /ping
+-- Test /ping
 function M.ping()
 	local url = build_url(endpoints.PING)
-	local cmd = string.format('curl -s -m 5 "%s"', url) -- 5秒超時
+local cmd = string.format('curl -s -m 5 "%s"', url) -- 5 second timeout
 
-	local success, result = execute_request(cmd, 1) -- ping 只試一次
+local success, result = execute_request(cmd, 1) -- ping only tries once
 	if not success then
 		return false, result
 	end
@@ -170,14 +170,14 @@ function M.ping()
 	return result:match("JoplinClipperServer") ~= nil, result
 end
 
--- 取得所有資料夾 (notebooks)
+-- Get all folders (notebooks)
 function M.get_folders()
-	local limit = 100 -- 單次查詢限制
+	local limit = 100 -- single query limit
 	local all_folders = {}
 	local page = 1
 	local has_more = true
 
-	-- 分頁獲取所有資料夾
+	-- Paginate to get all folders
 	while has_more do
 		local params = {
 			limit = limit,
@@ -199,8 +199,8 @@ function M.get_folders()
 			has_more = result.has_more or false
 			page = page + 1
 
-			-- 防止無限循環
-			if page > 50 then -- 最多查詢 50 頁
+			-- Prevent infinite loop
+			if page > 50 then -- maximum 50 pages
 				break
 			end
 		else
@@ -211,14 +211,14 @@ function M.get_folders()
 	return true, all_folders
 end
 
--- 取得指定資料夾的筆記
+-- Get notes from specified folder
 function M.get_notes(folder_id, limit)
-	limit = limit or 100 -- 單次查詢限制
+	limit = limit or 100 -- single query limit
 	local all_notes = {}
 	local page = 1
 	local has_more = true
 
-	-- 分頁獲取所有筆記
+	-- Paginate to get all notes
 	while has_more do
 		local params = {
 			limit = limit,
@@ -241,8 +241,8 @@ function M.get_notes(folder_id, limit)
 			has_more = result.has_more or false
 			page = page + 1
 
-			-- 防止無限循環
-			if page > 50 then -- 最多查詢 50 頁
+			-- Prevent infinite loop
+			if page > 50 then -- maximum 50 pages
 				break
 			end
 		else
@@ -250,7 +250,7 @@ function M.get_notes(folder_id, limit)
 		end
 	end
 
-	-- 如果有指定 folder_id，過濾出屬於該資料夾的筆記
+	-- If folder_id is specified, filter notes belonging to that folder
 	if folder_id then
 		local filtered_notes = {}
 
@@ -266,7 +266,7 @@ function M.get_notes(folder_id, limit)
 	return true, all_notes
 end
 
--- 取得單一筆記內容
+-- Get single note content
 function M.get_note(note_id)
 	if not note_id then
 		return false, "Note ID is required"
@@ -285,7 +285,7 @@ function M.get_note(note_id)
 	return true, result
 end
 
--- 創建新資料夾 (notebook)
+-- Create new folder (notebook)
 function M.create_folder(title, parent_id)
 	if not title or title == "" then
 		return false, "Folder title is required"
@@ -309,7 +309,7 @@ function M.create_folder(title, parent_id)
 	return true, result
 end
 
--- 創建新筆記
+-- Create new note
 function M.create_note(title, body, parent_id)
 	if not title or title == "" then
 		return false, "Note title is required"
@@ -334,7 +334,7 @@ function M.create_note(title, body, parent_id)
 	return true, result
 end
 
--- 更新筆記內容
+-- Update note content
 function M.update_note(note_id, data)
 	if not note_id then
 		return false, "Note ID is required"
@@ -351,7 +351,7 @@ function M.update_note(note_id, data)
 	return true, result
 end
 
--- 更新資料夾
+-- Update folder
 function M.update_folder(folder_id, data)
 	if not folder_id then
 		return false, "Folder ID is required"
@@ -368,7 +368,7 @@ function M.update_folder(folder_id, data)
 	return true, result
 end
 
--- 刪除資料夾
+-- Delete folder
 function M.delete_folder(folder_id)
 	if not folder_id then
 		return false, "Folder ID is required"
@@ -384,7 +384,7 @@ function M.delete_folder(folder_id)
 	return true, result
 end
 
--- 刪除筆記
+-- Delete note
 function M.delete_note(note_id)
 	if not note_id then
 		return false, "Note ID is required"
@@ -400,7 +400,7 @@ function M.delete_note(note_id)
 	return true, result
 end
 
--- 搜尋筆記
+-- Search notes
 function M.search_notes(query, options)
 	if not query or query == "" then
 		return false, "Search query is required"
@@ -435,7 +435,7 @@ function M.search_notes(query, options)
 	return true, result
 end
 
--- 搜尋 notebook（資料夾）
+-- Search notebooks (folders)
 function M.search_notebooks(query, options)
 	if not query or query == "" then
 		return false, "Search query is required"
@@ -449,7 +449,7 @@ function M.search_notebooks(query, options)
 	return M.search_notes(query, options)
 end
 
--- 移動筆記到指定資料夾
+-- Move note to specified folder
 function M.move_note(note_id, new_parent_id)
 	if not note_id then
 		return false, "Note ID is required"
@@ -474,7 +474,7 @@ function M.move_note(note_id, new_parent_id)
 	return true, result
 end
 
--- 移動資料夾到指定父資料夾
+-- Move folder to specified parent folder
 function M.move_folder(folder_id, new_parent_id)
 	if not folder_id then
 		return false, "Folder ID is required"

@@ -1,22 +1,22 @@
--- Joplin Tree UI - 自定義樹狀瀏覽器
--- 這個模組包含了主要的樹狀視圖功能，不依賴 Neo-tree
+-- Joplin Tree UI - Custom tree browser
+-- This module contains the main tree view functionality, independent of Neo-tree
 
 local api = require("joplin.api.client")
 
 local M = {}
 
--- 樹狀態管理
+-- Tree state management
 local buffer_tree_states = {}
 
--- 設定樹狀檢視的快捷鍵
+-- Setup tree view shortcut keys
 function M.setup_tree_keymaps(bufnr)
 	local tree_state = buffer_tree_states[bufnr]
 	if not tree_state then
-		print("❌ 無法找到樹狀檢視狀態")
+		print("❌ Cannot find tree view state")
 		return
 	end
 
-	-- o/Enter: 展開/摺疊資料夾或開啟筆記
+	-- o/Enter: Expand/collapse folder or open note
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "o", "", {
 		noremap = true,
 		silent = true,
@@ -33,7 +33,7 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- R: 重新整理
+	-- R: Refresh
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "R", "", {
 		noremap = true,
 		silent = true,
@@ -42,13 +42,13 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- q: 關閉
+	-- q: Close
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "q", "<cmd>q<cr>", {
 		noremap = true,
 		silent = true,
 	})
 
-	-- a: 在當前資料夾建立新筆記
+	-- a: Create new note in current folder
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "a", "", {
 		noremap = true,
 		silent = true,
@@ -57,7 +57,7 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- A: 在當前資料夾建立新資料夾
+	-- A: Create new folder in current folder
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "A", "", {
 		noremap = true,
 		silent = true,
@@ -66,7 +66,7 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- d: 刪除筆記或資料夾
+	-- d: Delete note or folder
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "d", "", {
 		noremap = true,
 		silent = true,
@@ -75,7 +75,7 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- r: 重新命名筆記或資料夾
+	-- r: Rename note or folder
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "r", "", {
 		noremap = true,
 		silent = true,
@@ -84,7 +84,7 @@ function M.setup_tree_keymaps(bufnr)
 		end,
 	})
 
-	-- m: 移動筆記或資料夾
+	-- m: Move note or folder
 	vim.api.nvim_buf_set_keymap(bufnr, "n", "m", "", {
 		noremap = true,
 		silent = true,
@@ -94,46 +94,46 @@ function M.setup_tree_keymaps(bufnr)
 	})
 end
 
--- 重建樹狀顯示
+-- Rebuild tree display
 function M.rebuild_tree_display(tree_state)
 	if not tree_state or not tree_state.bufnr then
 		print("❌ Invalid tree state")
 		return
 	end
 
-	-- 重建顯示內容
+	-- Rebuild display content
 	tree_state.lines = {}
 	tree_state.line_data = {}
 
-	-- 標題
+	-- Title
 	table.insert(tree_state.lines, "📋 Joplin Notes")
 	table.insert(tree_state.line_data, { type = "header" })
 	table.insert(tree_state.lines, "")
 	table.insert(tree_state.line_data, { type = "empty" })
 
-	-- 建立並顯示階層樹狀結構
+	-- Build and display hierarchical tree structure
 	local folder_tree = require("joplin").build_folder_tree(tree_state.folders or {})
 	require("joplin").display_folder_tree(tree_state, folder_tree, 0)
 
-	-- 更新 buffer 內容
+	-- Update buffer content
 	vim.api.nvim_buf_set_option(tree_state.bufnr, "modifiable", true)
 	vim.api.nvim_buf_set_lines(tree_state.bufnr, 0, -1, false, tree_state.lines)
 	vim.api.nvim_buf_set_option(tree_state.bufnr, "modifiable", false)
 end
 
--- 創建樹狀瀏覽器
+-- Create tree browser
 function M.create_tree()
 	local success, error_msg = pcall(function()
 		local config = require("joplin.config")
 		local tree_height = config.options.tree.height
 		local tree_position = config.options.tree.position
 
-		-- 記錄當前視窗 ID，作為之後開啟筆記的目標視窗
+		-- Record current window ID as target window for opening notes later
 		local original_win = vim.api.nvim_get_current_win()
 
 		local bufnr
 
-		-- 總是創建新的 buffer
+		-- Always create new buffer
 		bufnr = vim.api.nvim_create_buf(false, true)
 		local timestamp = os.time()
 		vim.api.nvim_buf_set_name(bufnr, "Joplin Tree " .. timestamp)
@@ -142,17 +142,17 @@ function M.create_tree()
 		vim.api.nvim_buf_set_option(bufnr, "filetype", "joplin-tree")
 		vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
 
-		print("🔄 正在載入資料夾結構...")
+		print("🔄 Loading folder structure...")
 
-		-- 獲取 Joplin 資料夾數據
+		-- Get Joplin folder data
 		local folders_success, folders = api.get_folders()
 		if not folders_success then
 			error("Failed to fetch folders: " .. folders)
 		end
 
-		print("✅ 已載入 " .. #folders .. " 個資料夾，正在建立樹狀結構...")
+		print("✅ Loaded " .. #folders .. " folders, building tree structure...")
 
-		-- 建立樹狀結構的狀態管理
+		-- Build tree structure state management
 		local tree_state = {
 			bufnr = bufnr,
 			folders = folders,
@@ -161,22 +161,22 @@ function M.create_tree()
 			loading = {},
 			lines = {},
 			line_data = {},
-			original_win = original_win, -- 記錄原始視窗
+			original_win = original_win, -- Record original window
 		}
 
-		-- 初始狀態：所有 folder 都是收縮的
+		-- Initial state: all folders are collapsed
 		for _, folder in ipairs(folders) do
 			tree_state.expanded[folder.id] = false
 			tree_state.loading[folder.id] = false
 		end
 
-		-- 重建顯示內容
+		-- Rebuild display content
 		M.rebuild_tree_display(tree_state)
 
-		-- 儲存 tree_state 供其他函數使用
+		-- Store tree_state for use by other functions
 		buffer_tree_states[bufnr] = tree_state
 
-		-- 清理 autocmd：當 buffer 關閉時清除狀態
+		-- Cleanup autocmd: clear state when buffer is closed
 		vim.api.nvim_create_autocmd("BufDelete", {
 			buffer = bufnr,
 			callback = function()
@@ -184,29 +184,29 @@ function M.create_tree()
 			end,
 		})
 
-		-- 設定快捷鍵
+		-- Setup shortcut keys
 		M.setup_tree_keymaps(bufnr)
 
-		-- 使用配置的位置和高度開啟樹狀檢視
+		-- Open tree view using configured position and height
 		vim.cmd(tree_position .. " " .. tree_height .. "split")
 		vim.api.nvim_set_current_buf(bufnr)
 
-		print("✅ Joplin 樹狀檢視已開啟")
-		print("💡 按 'Enter' 在上方視窗開啟筆記，'o' 垂直分割開啟，'q' 關閉樹狀檢視")
+		print("✅ Joplin tree view opened")
+		print("💡 Press 'Enter' to open note in upper window, 'o' for vertical split, 'q' to close tree view")
 	end)
 
 	if not success then
-		print("❌ 樹狀檢視開啟失敗: " .. error_msg)
+		print("❌ Failed to open tree view: " .. error_msg)
 		vim.notify("Failed to open Joplin tree: " .. error_msg, vim.log.levels.ERROR)
 	end
 end
 
--- 獲取指定 buffer 的 tree_state
+-- Get tree_state for specified buffer
 function M.get_tree_state_for_buffer(bufnr)
 	return buffer_tree_states[bufnr]
 end
 
--- 尋找活躍的樹狀 buffer
+-- Find active tree buffer
 function M.find_active_tree_buffer()
 	for bufnr, _ in pairs(buffer_tree_states) do
 		if vim.api.nvim_buf_is_valid(bufnr) then
@@ -216,11 +216,11 @@ function M.find_active_tree_buffer()
 	return nil
 end
 
--- 尋找顯示樹狀檢視的活躍視窗
+-- Find active window displaying tree view
 function M.find_active_tree_window()
 	for bufnr, _ in pairs(buffer_tree_states) do
 		if vim.api.nvim_buf_is_valid(bufnr) then
-			-- 檢查是否有視窗正在顯示這個 buffer
+			-- Check if any window is displaying this buffer
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
 				local win_bufnr = vim.api.nvim_win_get_buf(winid)
@@ -233,7 +233,7 @@ function M.find_active_tree_window()
 	return nil, nil
 end
 
--- 在樹狀視窗中尋找並高亮指定筆記（不切換 focus）
+-- Find and highlight specified note in tree window (without switching focus)
 function M.highlight_note_in_tree(note_id)
 	local tree_bufnr = M.find_active_tree_buffer()
 	if not tree_bufnr then
@@ -245,23 +245,23 @@ function M.highlight_note_in_tree(note_id)
 		return false
 	end
 
-	-- 在樹狀顯示中尋找指定的筆記
+	-- Find specified note in tree display
 	for line_num, line_data in ipairs(tree_state.line_data) do
 		if line_data.type == "note" and line_data.id == note_id then
-			-- 尋找樹狀視窗
+			-- Find tree window
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
 				local bufnr = vim.api.nvim_win_get_buf(winid)
 				if bufnr == tree_bufnr then
-					-- 記錄當前活躍視窗
+					-- Record current active window
 					local current_win = vim.api.nvim_get_current_win()
 
-					-- 使用 nvim_win_call 在樹狀視窗中設置游標，但不切換 focus
+					-- Use nvim_win_call to set cursor in tree window without switching focus
 					vim.api.nvim_win_call(winid, function()
 						vim.api.nvim_win_set_cursor(0, { line_num, 0 })
 					end)
 
-					-- 確保 focus 保持在原來的視窗
+					-- Ensure focus stays in original window
 					if vim.api.nvim_get_current_win() ~= current_win then
 						vim.api.nvim_set_current_win(current_win)
 					end
@@ -276,44 +276,44 @@ function M.highlight_note_in_tree(note_id)
 	return false
 end
 
--- 展開到指定 folder 並高亮指定筆記（靜默模式）
+-- Expand to specified folder and highlight specified note (silent mode)
 function M.expand_and_highlight_note(parent_folder_id, note_id, silent)
 	silent = silent or false
 
 	if not silent then
-		print("🔄 展開到資料夾: " .. parent_folder_id)
+		print("🔄 Expanding to folder: " .. parent_folder_id)
 	end
 
-	-- 先展開到目標資料夾，傳遞 silent 參數
+	-- First expand to target folder, passing silent parameter
 	M.expand_to_folder(parent_folder_id, silent)
 
-	-- 等待樹狀重建完成後嘗試高亮筆記
+	-- Wait for tree rebuild to complete then try to highlight note
 	vim.schedule(function()
-		-- 給一個短暫延遲確保樹狀重建完成
+		-- Give a brief delay to ensure tree rebuild is complete
 		vim.defer_fn(function()
 			local highlighted = M.highlight_note_in_tree(note_id)
 			if not silent and not highlighted then
-				-- 只在非靜默模式下提供診斷信息
+				-- Only provide diagnostic information in non-silent mode
 				local tree_bufnr = M.find_active_tree_buffer()
 				if tree_bufnr then
 					local tree_state = buffer_tree_states[tree_bufnr]
 					if tree_state and tree_state.folder_notes[parent_folder_id] then
 						local notes = tree_state.folder_notes[parent_folder_id]
-						print("📝 資料夾中共有 " .. #notes .. " 個筆記")
+						print("📝 Total " .. #notes .. " notes in folder")
 						for i, note in ipairs(notes) do
 							if note.id == note_id then
-								print("✅ 目標筆記確實在資料夾中: " .. note.title)
+								print("✅ Target note is indeed in folder: " .. note.title)
 								break
 							end
 						end
 					end
 				end
 			end
-		end, 200) -- 200ms 延遲
+		end, 200) -- 200ms delay
 	end)
 end
 
--- 建立 folder ID 到 folder 物件的映射
+-- Build mapping from folder ID to folder object
 function M.build_folder_map(folders)
 	local folder_map = {}
 	for _, folder in ipairs(folders) do
@@ -322,12 +322,12 @@ function M.build_folder_map(folders)
 	return folder_map
 end
 
--- 獲取到達目標 folder 的路徑（從根到目標的 folder ID 列表）
+-- Get path to target folder (list of folder IDs from root to target)
 function M.get_folder_path(target_folder_id, folder_map)
 	local path = {}
 	local current_id = target_folder_id
 
-	-- 從目標 folder 向上追溯到根 folder
+	-- Trace upward from target folder to root folder
 	while current_id do
 		table.insert(path, 1, current_id) -- 在前面插入，保持從根到目標的順序
 		local folder = folder_map[current_id]
@@ -335,7 +335,7 @@ function M.get_folder_path(target_folder_id, folder_map)
 			break
 		end
 		current_id = folder.parent_id
-		-- 如果 parent_id 為空或空字串，表示已到達根層級
+		-- If parent_id is empty or blank, reached root level
 		if not current_id or current_id == "" then
 			break
 		end
@@ -344,7 +344,7 @@ function M.get_folder_path(target_folder_id, folder_map)
 	return path
 end
 
--- 展開到指定的 folder 並載入其筆記
+-- Expand to specified folder and load its notes
 function M.expand_to_folder(target_folder_id, silent)
 	silent = silent or false
 
@@ -352,7 +352,7 @@ function M.expand_to_folder(target_folder_id, silent)
 		print("🔍 開始展開資料夾: " .. target_folder_id)
 	end
 
-	-- 尋找活躍的樹狀檢視 buffer
+	-- Find active tree view buffer
 	local tree_bufnr = nil
 	for bufnr, _ in pairs(buffer_tree_states) do
 		if vim.api.nvim_buf_is_valid(bufnr) then
@@ -376,7 +376,7 @@ function M.expand_to_folder(target_folder_id, silent)
 		return false
 	end
 
-	-- 確保 folders 資料是最新的（對於使用現有樹狀檢視的情況）
+	-- Ensure folders data is up-to-date (for cases using existing tree view)
 	if not tree_state.folders or #tree_state.folders == 0 then
 		if not silent then
 			print("🔄 重新載入資料夾資料...")
@@ -396,16 +396,16 @@ function M.expand_to_folder(target_folder_id, silent)
 			end
 		else
 			if not silent then
-				print("❌ 無法載入資料夾資料: " .. folders)
+				print("❌ Failed to load folder data: " .. folders)
 			end
 			return false
 		end
 	end
 
-	-- 建立 folder 映射
+	-- Build folder mapping
 	local folder_map = M.build_folder_map(tree_state.folders)
 
-	-- 檢查目標 folder 是否存在
+	-- Check if target folder exists
 	if not folder_map[target_folder_id] then
 		if not silent then
 			print("❌ 找不到指定的資料夾: " .. target_folder_id)
@@ -417,7 +417,7 @@ function M.expand_to_folder(target_folder_id, silent)
 		return false
 	end
 
-	-- 獲取到目標 folder 的路徑
+	-- Get path to target folder
 	local path = M.get_folder_path(target_folder_id, folder_map)
 
 	if not silent then
@@ -428,16 +428,16 @@ function M.expand_to_folder(target_folder_id, silent)
 		end
 	end
 
-	-- 逐層展開路徑上的每個 folder
+	-- Expand each folder along the path
 	for _, folder_id in ipairs(path) do
 		if not tree_state.expanded[folder_id] then
 			tree_state.expanded[folder_id] = true
 
-			-- 載入該 folder 的筆記（如果尚未載入）
+			-- Load notes for this folder (if not already loaded)
 			if not tree_state.folder_notes[folder_id] then
 				tree_state.loading[folder_id] = true
 
-				-- 同步載入筆記（在展開過程中保持同步）
+				-- Synchronously load notes (keep in sync during expansion)
 				local success, notes = api.get_notes(folder_id)
 				if success then
 					tree_state.folder_notes[folder_id] = notes
@@ -460,11 +460,11 @@ function M.expand_to_folder(target_folder_id, silent)
 		end
 	end
 
-	-- 重建樹狀顯示
+-- Rebuild tree display
 	local joplin = require("joplin")
 	joplin.rebuild_tree_display(tree_state)
 
-	-- 尋找目標 folder 在顯示中的行號並定位游標
+	-- Find line number of target folder in display and set cursor
 	for line_num, line_data in ipairs(tree_state.line_data) do
 		if line_data.type == "folder" and line_data.id == target_folder_id then
 			-- 尋找樹狀檢視視窗
@@ -473,17 +473,17 @@ function M.expand_to_folder(target_folder_id, silent)
 				local bufnr = vim.api.nvim_win_get_buf(winid)
 				if bufnr == tree_bufnr then
 					if silent then
-						-- 靜默模式：使用 nvim_win_call 不切換 focus
+						-- Silent mode: use nvim_win_call without switching focus
 						local current_win = vim.api.nvim_get_current_win()
 						vim.api.nvim_win_call(winid, function()
 							vim.api.nvim_win_set_cursor(0, { line_num, 0 })
 						end)
-						-- 確保 focus 保持在原來的視窗
+						-- Ensure focus stays in original window
 						if vim.api.nvim_get_current_win() ~= current_win then
 							vim.api.nvim_set_current_win(current_win)
 						end
 					else
-						-- 非靜默模式：正常切換到樹狀視窗
+						-- Non-silent mode: switch to tree window normally
 						vim.api.nvim_set_current_win(winid)
 						vim.api.nvim_win_set_cursor(winid, { line_num, 0 })
 						local folder_name = folder_map[target_folder_id].title or "Unknown"
@@ -505,4 +505,6 @@ function M.expand_to_folder(target_folder_id, silent)
 	return true
 end
 
+return M
+return M
 return M
