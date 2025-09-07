@@ -329,7 +329,7 @@ function M.get_folder_path(target_folder_id, folder_map)
 
 	-- Trace upward from target folder to root folder
 	while current_id do
-		table.insert(path, 1, current_id) -- 在前面插入，保持從根到目標的順序
+		table.insert(path, 1, current_id)
 		local folder = folder_map[current_id]
 		if not folder then
 			break
@@ -349,7 +349,7 @@ function M.expand_to_folder(target_folder_id, silent)
 	silent = silent or false
 
 	if not silent then
-		print("🔍 開始展開資料夾: " .. target_folder_id)
+		print("🔍 Start locating notebooks: " .. target_folder_id)
 	end
 
 	-- Find active tree view buffer
@@ -363,7 +363,7 @@ function M.expand_to_folder(target_folder_id, silent)
 
 	if not tree_bufnr then
 		if not silent then
-			print("❌ 沒有找到活躍的樹狀檢視")
+			print("❌ Unable to find active tree view")
 		end
 		return false
 	end
@@ -371,7 +371,7 @@ function M.expand_to_folder(target_folder_id, silent)
 	local tree_state = buffer_tree_states[tree_bufnr]
 	if not tree_state then
 		if not silent then
-			print("❌ 無法找到樹狀檢視狀態")
+			print("❌ Unable to find tree view state")
 		end
 		return false
 	end
@@ -379,13 +379,13 @@ function M.expand_to_folder(target_folder_id, silent)
 	-- Ensure folders data is up-to-date (for cases using existing tree view)
 	if not tree_state.folders or #tree_state.folders == 0 then
 		if not silent then
-			print("🔄 重新載入資料夾資料...")
+			print("🔄 Loading folder data...")
 		end
 		local api = require("joplin.api.client")
 		local success, folders = api.get_folders()
 		if success then
 			tree_state.folders = folders
-			-- 初始化新資料夾的狀態
+			-- Initialize state for new folders
 			for _, folder in ipairs(folders) do
 				if tree_state.expanded[folder.id] == nil then
 					tree_state.expanded[folder.id] = false
@@ -408,8 +408,8 @@ function M.expand_to_folder(target_folder_id, silent)
 	-- Check if target folder exists
 	if not folder_map[target_folder_id] then
 		if not silent then
-			print("❌ 找不到指定的資料夾: " .. target_folder_id)
-			print("🐛 可用的資料夾 ID: ")
+			print("❌ Unable to find notebook: " .. target_folder_id)
+			print("🐛 Available notebook ID: ")
 			for id, folder in pairs(folder_map) do
 				print("  - " .. id .. ": " .. (folder.title or "Untitled"))
 			end
@@ -421,7 +421,7 @@ function M.expand_to_folder(target_folder_id, silent)
 	local path = M.get_folder_path(target_folder_id, folder_map)
 
 	if not silent then
-		print("🗂️  展開路徑 (" .. #path .. " 層): " .. table.concat(path, " -> "))
+		print("🗂️  Expend directory (" .. #path .. " level): " .. table.concat(path, " -> "))
 		for i, folder_id in ipairs(path) do
 			local folder_name = folder_map[folder_id] and folder_map[folder_id].title or "Unknown"
 			print("  " .. i .. ". " .. folder_id .. " (" .. folder_name .. ")")
@@ -444,15 +444,15 @@ function M.expand_to_folder(target_folder_id, silent)
 					if not silent then
 						local folder_name = folder_map[folder_id].title or "Unknown"
 						if #notes > 0 then
-							print("✅ 已載入 " .. #notes .. " 個筆記 (" .. folder_name .. ")")
+							print("✅ " .. #notes .. " notes successfully loaded (" .. folder_name .. ")")
 						else
-							print("📝 資料夾已展開，但沒有筆記 (" .. folder_name .. ")")
+							print("📝 Notebook opened，but no notes (" .. folder_name .. ")")
 						end
 					end
 				else
 					tree_state.folder_notes[folder_id] = {}
 					if not silent then
-						print("❌ 載入筆記失敗: " .. notes)
+						print("❌ Failed to load notes: " .. notes)
 					end
 				end
 				tree_state.loading[folder_id] = false
@@ -460,14 +460,14 @@ function M.expand_to_folder(target_folder_id, silent)
 		end
 	end
 
--- Rebuild tree display
+	-- Rebuild tree display
 	local joplin = require("joplin")
 	joplin.rebuild_tree_display(tree_state)
 
 	-- Find line number of target folder in display and set cursor
 	for line_num, line_data in ipairs(tree_state.line_data) do
 		if line_data.type == "folder" and line_data.id == target_folder_id then
-			-- 尋找樹狀檢視視窗
+			-- Find the tree view window
 			local tree_wins = vim.api.nvim_list_wins()
 			for _, winid in ipairs(tree_wins) do
 				local bufnr = vim.api.nvim_win_get_buf(winid)
@@ -490,7 +490,7 @@ function M.expand_to_folder(target_folder_id, silent)
 						local note_count = tree_state.folder_notes[target_folder_id]
 								and #tree_state.folder_notes[target_folder_id]
 							or 0
-						print("✅ 已定位到資料夾: " .. folder_name .. " (" .. note_count .. " 個筆記)")
+						print("✅ Notbook found: " .. folder_name .. " (" .. note_count .. " notes)")
 					end
 					return true
 				end
@@ -500,7 +500,7 @@ function M.expand_to_folder(target_folder_id, silent)
 	end
 
 	if not silent then
-		print("⚠️  資料夾已展開但未能定位游標")
+		print("⚠️  Folder expanded but cursor not located")
 	end
 	return true
 end

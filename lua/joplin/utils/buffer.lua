@@ -209,7 +209,7 @@ function M.open_note(note_id, open_cmd)
 	vim.api.nvim_create_autocmd("BufEnter", {
 		buffer = bufnr,
 		callback = function()
-			-- 延遲執行避免在 buffer 創建過程中觸發
+			-- Delay execution to avoid triggering during buffer creation
 			vim.schedule(function()
 				local joplin = require("joplin")
 				if joplin.auto_sync_to_current_note then
